@@ -1,5 +1,11 @@
+use busy_bee::mmu::Mmu;
+use busy_bee::CPU;
 use std::fs;
 use std::io;
+
+fn read_word(memory: [u8; 4096], index: u16) -> u16 {
+    (memory[index as usize] as u16) << 8 | (memory[(index + 1) as usize] as u16)
+}
 
 fn main() -> Result<(), io::Error> {
     let rom = fs::read("/Users/davethomas/Documents/68000/TOS100UK.IMG")?;
@@ -20,6 +26,21 @@ fn main() -> Result<(), io::Error> {
 
     //cpu.reset();
     cpu.reset();
+    cpu.step();
+    cpu.step();
+    cpu.step();
+    cpu.step();
+    cpu.step();
+    cpu.step();
+    cpu.step();
+    cpu.step();
+    cpu.step();
+    cpu.step();
+    cpu.step();
+    cpu.step();
+    cpu.step();
+    cpu.step();
+    cpu.step();
     println!("\r\n{:?}", cpu);
     Ok(())
 }
