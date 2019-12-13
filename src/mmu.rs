@@ -36,6 +36,30 @@ pub struct Mmu {
     pub ym2149: [u8; 4],
     pub video_display: [u8; 96],
 }
+
+impl fmt::Debug for Mmu {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "mmu {{ rom: {}, cart: {} memory: {} }}",
+            self.rom.len(),
+            self.cart.len(),
+            self.memory.len()
+        )
+    }
+}
+
+fn word_from_slice(buffer: &[u8], address: u32) -> u16 {
+    (buffer[address as usize] as u16) << 8 | (buffer[(address.wrapping_add(1)) as usize] as u16)
+}
+
+fn long_from_slice(buffer: &[u8], address: u32) -> u32 {
+    (buffer[address as usize] as u32) << 24
+        | (buffer[address.wrapping_add(1) as usize] as u32) << 16
+        | (buffer[address.wrapping_add(2) as usize] as u32) << 8
+        | (buffer[address.wrapping_add(3) as usize] as u32)
+}
+
 impl Mmu {
     pub fn read_byte(&self, address: u32) -> u8 {
         match address {
