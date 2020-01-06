@@ -1,6 +1,20 @@
+#![feature(exclusive_range_pattern)]
+#![feature(trace_macros)]
+
+#[macro_use]
+extern crate num_derive;
+
+use self::TraceMode::*;
+use num_traits::FromPrimitive;
 use std::fmt;
 
 pub mod mmu;
+
+macro_rules! n_flag {
+    ($e:ident) => {
+        $e.ccr
+    };
+}
 
 pub enum TraceMode {
     NoTrace,
@@ -20,6 +34,19 @@ pub enum OperationSize {
     Word,
     Long
 }
+
+impl OperationSize {
+    fn from_u16(element: u16) -> OperationSize {
+        match element {
+            0xFF => OperationSize::Long,
+            0x00 => OperationSize::Word,
+            other => OperationSize::Byte
+        }
+
+    }
+}
+
+#[derive(FromPrimitive, ToPrimitive)]
 pub enum Condition {
     T = 0b0000,
     F = 0b0001,
@@ -38,6 +65,79 @@ pub enum Condition {
     GT = 0b1110,
     LE = 0b1111,
 }
+
+impl fmt::Display for Condition {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let text = match self {
+            Condition::T => "t",
+            Condition::F => "f",
+            Condition::HI => "hi",
+            Condition::LS => "ls",
+            Condition::CC => "cc",
+            Condition::CS => "cs",
+            Condition::NE => "ne",
+            Condition::EQ => "eq",
+            Condition::VC => "vc",
+            Condition::VS => "vs",
+            Condition::PL => "pl",
+            Condition::MI => "mi",
+            Condition::GE => "ge",
+            Condition::LT => "lt",
+            Condition::GT => "gt",
+            Condition::LE => "le",
+        };
+        write!(f, "{}", text)
+    }
+}
+
+impl fmt::Debug for Condition {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let text = match self {
+            Condition::T => "True",
+            Condition::F => "False",
+            Condition::HI => "Higher",
+            Condition::LS => "Lower or Same",
+            Condition::CC => "Carry Clear",
+            Condition::CS => "Carry Set",
+            Condition::NE => "Not Equal",
+            Condition::EQ => "Equal",
+            Condition::VC => "Overflow Clear",
+            Condition::VS => "Overflow Set",
+            Condition::PL => "Plus",
+            Condition::MI => "Minus",
+            Condition::GE => "Greater or Equal",
+            Condition::LT => "Less Than",
+            Condition::GT => "Greater Than",
+            Condition::LE => "Less or Equal",
+        };
+        write!(f, "{}", text)
+    }
+}
+
+use Condition::*;
+impl Condition {
+    pub fn condition_true(&self, cpu: &CPU) -> bool {
+        match self {
+            T => true,
+            F => false,
+            HI => !cpu.c() & !cpu.z(),
+            LS => cpu.c() | cpu.z(),
+            CC => !cpu.c(),
+            CS => cpu.c(),
+            NE => !cpu.z(),
+            EQ => cpu.z(),
+            VC => !cpu.v(),
+            VS => cpu.v(),
+            PL => !cpu.n(),
+            MI => cpu.n(),
+            GE => (cpu.n() & cpu.v()) | (!cpu.n() & !cpu.v()),
+            LT => (cpu.n() & !cpu.v()) | (!cpu.n() & cpu.v()),
+            GT => (cpu.n() & cpu.v()) | (!cpu.n() & !cpu.v()) & !cpu.z(),
+            LE => cpu.z() | (cpu.n() & !cpu.v()) | (!cpu.n() & cpu.v())
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct CPU {
     pub d: [u32; 8],
@@ -45,4 +145,481 @@ pub struct CPU {
     pub pc: u32,
     pub ccr: u16,
     pub mmu: mmu::Mmu,
+}
+
+//println!("TTSM IPM   XNZVC");
+//println!("{:016b}", cpu.ccr);
+impl fmt::Debug for CPU {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        writeln!(
+            f,
+            "D0 {:08x}   D1 {:08x}   D2 {:08x}   D3 {:08x}",
+            self.d[0], self.d[1], self.d[2], self.d[3]
+        )?;
+        writeln!(
+            f,
+            "D4 {:08x}   D5 {:08x}   D6 {:08x}   D7 {:08x}",
+            self.d[4], self.d[5], self.d[6], self.d[7]
+        )?;
+        writeln!(
+            f,
+            "A0 {:08x}   A1 {:08x}   A2 {:08x}   A3 {:08x}",
+            self.a[0], self.a[1], self.a[2], self.a[3]
+        )?;
+        writeln!(
+            f,
+            "A4 {:08x}   A5 {:08x}   A6 {:08x}   A7 {:08x}",
+            self.a[4], self.a[5], self.a[6], self.a[7]
+        )?;
+        writeln!(f, "USP   {:08x}   ISP   {:08x}", self.a[7], self.a[7])?;
+        writeln!(
+            f,
+            "T={:02b} S={} M={} X={} N={} Z={} V={} C={} IMASK={:0x} STP={}",
+            (self.ccr >> 14),
+            self.s() as u32,
+            self.m() as u32,
+            self.x() as u32,
+            self.n() as u32,
+            self.z() as u32,
+            self.v() as u32,
+            self.c() as u32,
+            self.interrupt_mask(),
+            0
+        )?;
+        writeln!(f, "PC: {:08x}", self.pc)
+    }
+}
+// D0 FFFF00E4   D1 00FC4C25   D2 00000023   D3 0000FFFF
+// D4 00000400   D5 00100000   D6 00000017   D7 00015F96
+// A0 0000187A   A1 00000A06   A2 00FC2318   A3 00FC2356
+// A4 00FC05C0   A5 00000000   A6 00FC0044   A7 601E0100
+// USP  00006188 ISP  601E0100
+// T=00 S=1 M=0 X=0 N=0 Z=0 V=0 C=0 IMASK=7 STP=0
+// Prefetch fa52 (ILLEGAL) 0cb9 (CMP) Chip latch 00000000
+// 00FC0026 0cb9 fa52 235f 00fa 0000 CMP.L #$fa52235f,$00fa0000 [ffffffff]
+// Next PC: 00fc0030
+
+pub mod ccr {
+    pub const C: u16 = 0x1;
+    pub const V: u16 = 0x2;
+    pub const Z: u16 = 0x4;
+    pub const N: u16 = 0x8;
+    pub const X: u16 = 0x10;
+    pub const I: u16 = 0x700;
+    pub const M: u16 = 0x1000;
+    pub const S: u16 = 0x2000;
+    pub const T0: u16 = 0x4000;
+    pub const T1: u16 = 0x8000;
+
+    pub const XC: u16 = X | C;
+    pub const NZVC: u16 = N | Z | V | C;
+    pub const XNVC: u16 = X | N | V | C;
+    pub const XNZVC: u16 = X | N | Z | V | C;
+
+    pub const MASK: u16 = X | N | Z | V | C;
+    pub const E68_SR_MASK: u16 = MASK | S | T0 | T1 | I;
+}
+
+use ccr::*;
+impl CPU {
+    pub fn c(&self) -> bool {
+        !self.ccr & C == 0
+    }
+
+    pub fn v(&self) -> bool {
+        !self.ccr & V == 0
+    }
+    pub fn z(&self) -> bool {
+        !self.ccr & Z == 0
+    }
+    pub fn n(&self) -> bool {
+        !self.ccr & N == 0
+    }
+    pub fn x(&self) -> bool {
+        !self.ccr & X == 0
+    }
+    pub fn interrupt_mask(&self) -> u16 {
+        self.ccr & I
+    }
+    pub fn m(&self) -> bool {
+        !self.ccr & M == 0
+    }
+    pub fn s(&self) -> bool {
+        !self.ccr & S == 0
+    }
+    pub fn t0(&self) -> bool {
+        !self.ccr & T0 == 0
+    }
+    pub fn t1(&self) -> bool {
+        !self.ccr & T1 == 0
+    }
+
+    pub fn trace_mode(&self) -> TraceMode {
+        match (self.t0(), self.t1()) {
+            (false, false) => NoTrace,
+            (true, false) => TraceOnAny,
+            (false, true) => TraceOnFlow,
+            (true, true) => Undefined,
+        }
+    }
+
+    pub fn reset(&mut self) {
+        self.a[7] = self.mmu.read_long(0) as u32;
+        self.pc = self.mmu.read_long(4) as u32;
+    }
+
+    pub fn step(&mut self) {
+        let opcode = self.mmu.read_word(self.pc);
+        let op_1 = (opcode & 0xF000) >> 12;
+        let op_2 = (opcode & 0x0F00) >> 8;
+        let op_3 = (opcode & 0x00F0) >> 4;
+        let op_4 = opcode & 0x000F;
+        match (op_1, op_2, op_3, op_4) {
+            //(0b0000, 0b0000, _, _) => println!("ori to ccr"),
+            //Bra, Bcc, Bsr
+            (0b0110, condition, ..) => {
+                match condition {
+                    //Bra
+                    0b0000 => {
+                        match opcode & 0xFF {
+                            0xFF => {
+                                //long displacement
+                                self.pc += self.mmu.read_long(self.pc + 2) + 2;
+                                println!("bra.l ${:06x}", self.pc)
+                            }
+                            0x00 => {
+                                //word displacement
+                                self.pc += self.mmu.read_word(self.pc + 2) as u32 + 2;
+                                println!("bra.w ${:06x}", self.pc)
+                            }
+                            byte => {
+                                //byte displacement
+                                self.pc += (byte as u32) + 2;
+                                println!("bra.s ${:06x}", self.pc)
+                            }
+                        }
+                    }
+                    //Bsr
+                    0b0001 => unimplemented!("Bsr"),
+                    //Bcc
+                    bcc => {
+                        let condition = Condition::from_u16(bcc).unwrap();
+                        let condition_true = condition.condition_true(self);
+                        let displacement = opcode & 0xFF;
+                        let displacement_size = OperationSize::from_u16(displacement);
+                        //this is the same as Bra
+                        match displacement_size {
+                            OperationSize::Long => {
+                                println!("b{}.l ${:06x} ({})", condition, self.pc, condition_true);
+                                if condition_true {
+                                    let displacement = self.mmu.read_long(self.pc + 2);
+                                    self.pc += displacement + 2;
+                                } else {
+                                    self.pc += 6
+                                }
+                            }
+                            OperationSize::Word => {
+                                println!("b{}.w ${:06x} ({})",  condition, self.pc, condition_true);
+                                if condition_true {
+                                    let displacement = self.mmu.read_word(self.pc + 2) as u32;
+                                    self.pc += displacement + 2;
+                                } else {
+                                    self.pc += 4
+                                }
+                            }
+                            OperationSize::Byte => {
+                                println!("b{}.b ${:06x} ({})", condition, self.pc + displacement as u32 + 2, condition_true);
+                                if condition_true {
+                                    self.pc += (displacement as u32) + 2;
+                                } else {
+                                    self.pc += 2
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            //Move to SR
+            (0b0100, 0b0110, part, _) if part & 0b1100 == 0b1100 => {
+                let mode = (opcode & 0b0000000000111000) >> 3;
+                let reg = opcode & 0b0000000000000111;
+                match (mode, reg) {
+                    (0b0111, 0b0100) => {
+                        let imm = self.mmu.read_word(self.pc + 2);
+                        self.ccr = imm;
+                        self.pc += 4;
+                        println!("move #{:0x},sr", imm)
+                    }
+                    _ => unimplemented!("move      {}{}", mode, reg),
+                }
+            }
+            //reset
+            (0b0100, 0b1110, 0b0111, 0b0000) => {
+                //124 clock cycles
+                self.pc += 2;
+                println!("reset")
+            },
+
+            //jmp
+            (..) if opcode & 0b1111111111000000 == 0b0100111011000000 => {
+                let mode = (opcode & 0b0000000000111000) >> 3;
+                let reg = opcode & 0b0000000000000111;
+                match mode {
+                    0b010 => {
+                        let jump = self.a[reg as usize];
+                        println!("jmp A{:x}", reg);
+                        self.pc = jump
+                    },
+                    0b101 => {
+                        unimplemented!()
+                    },
+                    0b110 => {
+                        unimplemented!()
+                    },
+                    0b111 => {
+                        match reg {
+                            0b000 => {
+                                unimplemented!()
+                            },
+                            0b001 => {
+                                unimplemented!()
+                            },
+                            0b010 => {
+                                unimplemented!()
+                            },
+                            0b011 => {
+                                unimplemented!()
+                            },
+                            _ => panic!("invalid jmp {:016b}", opcode)
+                        }
+                    },
+                    _ => panic!("invalid jmp {:016b}", opcode)
+                }
+
+            }
+            //cmpi #<data>, <ea>
+            //Destination - Immediate Data
+            (0b0000, 0b1100, ..) => {
+                let size = (opcode & 0b0000000011000000) >> 6;
+                let mode = (opcode & 0b0000000000111000) >> 3;
+                let reg = opcode & 0b0000000000000111;
+                match (size, mode, reg) {
+                    //byte
+                    (0b00, ..) => unimplemented!(),
+                    //word
+                    (0b01, ..) => unimplemented!(),
+                    //long
+                    (0b10, ..) => match (mode, reg) {
+                        //(d16,An)
+                        (0b101, an_reg) => {
+                            let immediate = self.mmu.read_long(self.pc + 2);
+                            let displacement = self.mmu.read_word(self.pc + 6) as u32;
+                            let destination = self.a[an_reg as usize] + displacement;
+                            let result = destination.wrapping_sub(immediate);
+                            println!("cmpi.l #${:x},(A{},${:x}) == ${:x}", immediate, an_reg, displacement, destination);
+
+                            let sn = immediate & 1 << 31 != 0;
+                            let dn = destination & 1 << 31 != 0;
+                            let rn = result & 1 << 31 != 0;
+
+                            let mut set: u16 = 0;
+                            //overflow
+                            if (!sn && dn && !rn) || (sn && !dn && rn) {
+                                set |= ccr::V;
+                            }
+                            //carry
+                            if (sn && !dn) || (rn && !dn) || (sn && rn) {
+                                set |= ccr::C | ccr::X;
+                            }
+                            //neg
+                            if rn {
+                                set |= ccr::N
+                            }
+                            //zero
+                            if result == 0 {
+                                set |= ccr::Z
+                            }
+                            self.ccr &= !ccr::NZVC;
+                            self.ccr |= set & ccr::NZVC;
+
+                            
+                            self.pc += 8
+                        },
+                        //Absolute Long
+                        (0b111, 0b001) => {
+                            let immediate = self.mmu.read_long(self.pc + 2);
+                            let destination_register = self.mmu.read_long(self.pc + 6);
+                            let destination = self.mmu.read_long(destination_register);
+                            //let result = dest.wrapping_sub(immediate);
+                            let result = destination - immediate;
+
+                            let sn = immediate & 1 << 31 != 0;
+                            let dn = destination & 1 << 31 != 0;
+                            let rn = result & 1 << 31 != 0;
+
+                            let mut set: u16 = 0;
+                            //overflow
+                            if (!sn && dn && !rn) || (sn && !dn && rn) {
+                                set |= ccr::V;
+                            }
+                            //carry
+                            if (sn && !dn) || (rn && !dn) || (sn && rn) {
+                                set |= ccr::C | ccr::X;
+                            }
+                            //neg
+                            if rn {
+                                set |= ccr::N
+                            }
+                            //zero
+                            if result == 0 {
+                                set |= ccr::Z
+                            }
+                            self.ccr &= !ccr::NZVC;
+                            self.ccr |= set & ccr::NZVC;
+
+                            //self.clock +=12;
+                            self.pc += 10;
+                            println!("cmpi.l #${:0x}, ${:0x}", immediate, destination_register)
+                        }
+                        _ => unimplemented!("other cmpi mode{:03b} ea_reg{:03b}", mode, reg),
+                    },
+                    //should be impossible size is only 2 bit
+                    _ => panic!("invalid size"),
+                }
+            },
+            //lea
+            (..) if opcode & 0b1111000111000000 == 0b0100000111000000 => {
+                let an = (opcode >> 9) & 0b111;
+                let m = (opcode >> 3) & 0b111;
+                let xn = opcode & 0b111;
+
+                match (m, xn) {
+                    (0b010, r) => {
+                        //(An)
+                        todo!();
+                    },
+                    (0b101, r) => {
+                        //(d16, An)
+                        todo!();
+                    },
+                    (0b110, r) => {
+                        //(d8, An)
+                        todo!();
+                    },
+                    (0b111, 0b000) => {
+                        //(xxx).W,
+                        todo!();
+                    },
+                    (0b111, 0b001) => {
+                        //(xxx).L
+                        let address = self.mmu.read_long(self.pc + 2);
+                        self.a[an as usize] = address;
+                        println!("lea.l {:08x},{}", address, an);
+                        self.pc += 6
+                    },
+                    (0b111, 0b010) => {
+                        //pc with word displacement
+                        //(d16, PC)
+                        let displacement = self.mmu.read_word(self.pc + 2);
+                        self.a[an as usize] = self.pc + 2 + displacement as u32;
+                        println!("lea.l (PC,${:04x}), a{}", displacement, an);
+                        self.pc += 4;
+                    },
+                    (0b111, 0b011) => {
+                        //(d8, PC, Xn)
+                        todo!();
+                    },
+                    _ => panic!("invalid mode/reg for lea")
+
+                }
+                
+                
+            },
+            //suba
+            (0b1001,..)  => {
+                let register = opcode >> 9 & 0b111;
+                let op_mode = opcode >> 6 & 0b111;
+                let mode = opcode >> 3 & 0b111;
+                let ea_reg = opcode & 0b111;
+                match mode {
+                    0b000 => {
+                        //Dn
+                        todo!();
+                    },
+                    0b001 => {
+                        //An
+                        match op_mode {
+                            //suba.w
+                            0b011 => {
+                                //note: Word operation. The source operand is sign-extended to a long operand and 
+                                //the operation is performed on the address register using all 32 bits.
+                                todo!();
+                            },
+                            //suba.l
+                            0b111 => {
+                                let dest = self.a[register as usize];
+                                let source = self.a[ea_reg as usize];
+                                let result = dest - source;
+                                println!("suba.l a{},a{}", ea_reg, register);
+                                self.a[register as usize] = result;
+                                self.pc += 2;
+                            },
+                            _ => panic!("invalid suba instruction {0:016b} ${0:x}", opcode)
+                        } 
+                    },
+                    0b010 => {
+                        //(An)
+                        todo!();
+                    },
+                    0b011 => {
+                        //(An)+
+                        todo!();
+                    },
+                    0b100 => {
+                        //-(An)
+                        todo!();
+                    },
+                    0b101 => {
+                        //(d16,An)
+                        todo!();
+                    },
+                    0b110 => {
+                        //(d8,An,Xn)
+                        todo!();
+                    },
+                    0b111 => {
+                        match ea_reg {
+                            0b000 => {
+                            //(xxx).W
+                            todo!();
+                        },
+                            0b001 => {
+                            //(xxx).L
+                            todo!();
+                        },
+                            0b100 => {
+                            //#<data>
+                            todo!();
+                        },
+                            0b010 => {
+                            //(d16,PC)
+                            todo!();
+                        },
+                            0b011 => {
+                            //(d8,PC,Xn)
+                            todo!();
+                        },
+                        _ => panic!("invalid suba instruction {0:016b} ${0:x}", opcode)
+                        }
+                    }
+                    _ => panic!("invalid suba instruction {0:016b} ${0:x}", opcode)
+                }
+            },
+            _ => panic!(
+                "unknown {:04b} {:04b} {:04b} {:04b} {:04x}",
+                op_1, op_2, op_3, op_4, opcode
+            ),
+        }
+    }
 }
