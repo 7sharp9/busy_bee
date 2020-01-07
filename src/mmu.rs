@@ -74,13 +74,25 @@ impl Mmu {
             }
             VIDEO_DISPLAY_REGISTER_START..=VIDEO_DISPLAY_REGISTER_END => {
                 unimplemented!("video read");
-                self.video_display[(address) as usize]
+                //self.video_display[(address) as usize]
             }
             a => self.memory[a as usize],
         }
     }
 
-    pub fn read_word(&self, address: u32) -> u16 {
+    pub fn write_byte(& mut self, destination: u32, data: u8) {
+        let address = destination & 0xffffff; //clip to max mem
+        match address {
+            a if a < 8 => panic!("Memory error:${0:08x}, {0}, {0:024b}", destination),
+            ROM_START..ROM_END => panic!("Attempt to write to Rom: ${:08x}", destination),
+            CART_START..CART_END => panic!("Attempt to write to Cart: ${:08x}", destination),
+            VIDEO_DISPLAY_REGISTER_START..VIDEO_DISPLAY_REGISTER_END => unimplemented!("write to Video Display Register: {:0x}", address),
+            //YM2149 => ym2149IOMemory[(destination-ym2149Start)] = data
+            _ => self.memory[destination as usize] = data,
+        }
+    }
+
+    pub fn read_word(& mut self, address: u32) -> u16 {
         match address {
             0..7 => word_from_slice(&self.rom, address),
             ROM_START..ROM_END => {
@@ -96,10 +108,31 @@ impl Mmu {
                 0xffff
             }
             VIDEO_DISPLAY_REGISTER_START..VIDEO_DISPLAY_REGISTER_END => {
-                unimplemented!("video read");
-                word_from_slice(&self.video_display, address)
+                unimplemented!("video read")
+                //word_from_slice(&self.video_display, address)
             }
             a => word_from_slice(&self.memory, a),
+        }
+    }
+
+    pub fn write_word(& mut self, destination: u32, data: u16) {
+        let address = destination & 0xffffff; //clip to max mem
+        match address {
+            a if a < 8 => panic!("Memory error:${0:08x}, {0}, {0:024b}", destination),
+            ROM_START..ROM_END => panic!("Attempt to write to Rom: ${:08x}", destination),
+            CART_START..CART_END => panic!("Attempt to write to Cart: ${:08x}", destination),
+            VIDEO_DISPLAY_REGISTER_START..VIDEO_DISPLAY_REGISTER_END => unimplemented!(
+                "not implemented write to Video Display Register: {:0x}",
+                address
+            ),
+            //YM2149 {
+            //     ym2149IOMemory[(destination-ym2149Start)] = (data >> 8)
+            //     ym2149IOMemory[(destination-ym2149Start + 1)] = data
+            //}
+            _ => {
+                self.memory[destination as usize] = (data >> 8) as u8;
+                self.memory[(destination + 1) as usize] = (data & 0xff) as u8
+            }
         }
     }
 
@@ -113,13 +146,10 @@ impl Mmu {
                 //let temp2 = BigEndian::read_u32(temp);
                 rom1
             }
-            CART_START..CART_END => {
-                //todo!();
-                0xffffffff
-            }
+            CART_START..CART_END => 0xffffffff,
             VIDEO_DISPLAY_REGISTER_START..VIDEO_DISPLAY_REGISTER_END => {
-                unimplemented!("video read");
-                long_from_slice(&self.video_display, address)
+                unimplemented!("video read")
+                //long_from_slice(&self.video_display, address)
             }
             a => long_from_slice(&self.memory, a),
         }
