@@ -41,6 +41,7 @@ fn main() -> Result<(), io::Error> {
     cpu.step();
     cpu.step();
     cpu.step();
+    cpu.step();
     println!("\r\n{:?}", cpu);
     Ok(())
 }

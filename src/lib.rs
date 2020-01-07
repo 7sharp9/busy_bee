@@ -32,7 +32,7 @@ pub enum ActiveStack {
 pub enum OperationSize {
     Byte,
     Word,
-    Long
+    Long,
 }
 
 impl OperationSize {
@@ -40,9 +40,8 @@ impl OperationSize {
         match element {
             0xFF => OperationSize::Long,
             0x00 => OperationSize::Word,
-            other => OperationSize::Byte
+            _other => OperationSize::Byte,
         }
-
     }
 }
 
@@ -133,7 +132,7 @@ impl Condition {
             GE => (cpu.n() & cpu.v()) | (!cpu.n() & !cpu.v()),
             LT => (cpu.n() & !cpu.v()) | (!cpu.n() & cpu.v()),
             GT => (cpu.n() & cpu.v()) | (!cpu.n() & !cpu.v()) & !cpu.z(),
-            LE => cpu.z() | (cpu.n() & !cpu.v()) | (!cpu.n() & cpu.v())
+            LE => cpu.z() | (cpu.n() & !cpu.v()) | (!cpu.n() & cpu.v()),
         }
     }
 }
@@ -149,17 +148,27 @@ pub struct CPU {
 
 //println!("TTSM IPM   XNZVC");
 //println!("{:016b}", cpu.ccr);
+
+use colored::Colorize;
 impl fmt::Debug for CPU {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(
             f,
-            "D0 {:08x}   D1 {:08x}   D2 {:08x}   D3 {:08x}",
-            self.d[0], self.d[1], self.d[2], self.d[3]
+            "{}",
+            (format!(
+                "D0 {:08x}   D1 {:08x}   D2 {:08x}   D3 {:08x}",
+                self.d[0], self.d[1], self.d[2], self.d[3]
+            ))
+            .red()
         )?;
         writeln!(
             f,
-            "D4 {:08x}   D5 {:08x}   D6 {:08x}   D7 {:08x}",
-            self.d[4], self.d[5], self.d[6], self.d[7]
+            "{}",
+            (format!(
+                "D4 {:08x}   D5 {:08x}   D6 {:08x}   D7 {:08x}",
+                self.d[4], self.d[5], self.d[6], self.d[7]
+            ))
+            .red()
         )?;
         writeln!(
             f,
@@ -274,8 +283,35 @@ impl CPU {
         let op_2 = (opcode & 0x0F00) >> 8;
         let op_3 = (opcode & 0x00F0) >> 4;
         let op_4 = opcode & 0x000F;
+
+        fn byte_word_or_long(op: u16) -> bool {
+            match op {
+                0b00 => false,
+                _ => true,
+            }
+        }
+
+        fn size_from_two_bits_one_indexed(size: u16) -> Option<OperationSize> {
+            match size & 0b011 {
+                0b00 => None,
+                0b01 => Some(OperationSize::Byte),
+                0b11 => Some(OperationSize::Word),
+                0b10 => Some(OperationSize::Long),
+                _ => None
+            }
+        }
+
         match (op_1, op_2, op_3, op_4) {
             //(0b0000, 0b0000, _, _) => println!("ori to ccr"),
+            (..) if op_1 & 0b1100 == 0 && byte_word_or_long(op_1) => {
+                let size = size_from_two_bits_one_indexed(op_1)?;
+
+                //let destination_reg = 
+                //let destination_mode = 
+                //let source_mode =
+                //let source_reg = 
+                println!("move ")
+            }
             //Bra, Bcc, Bsr
             (0b0110, condition, ..) => {
                 match condition {
@@ -319,7 +355,7 @@ impl CPU {
                                 }
                             }
                             OperationSize::Word => {
-                                println!("b{}.w ${:06x} ({})",  condition, self.pc, condition_true);
+                                println!("b{}.w ${:06x} ({})", condition, self.pc, condition_true);
                                 if condition_true {
                                     let displacement = self.mmu.read_word(self.pc + 2) as u32;
                                     self.pc += displacement + 2;
@@ -328,7 +364,12 @@ impl CPU {
                                 }
                             }
                             OperationSize::Byte => {
-                                println!("b{}.b ${:06x} ({})", condition, self.pc + displacement as u32 + 2, condition_true);
+                                println!(
+                                    "b{}.b ${:06x} ({})",
+                                    condition,
+                                    self.pc + displacement as u32 + 2,
+                                    condition_true
+                                );
                                 if condition_true {
                                     self.pc += (displacement as u32) + 2;
                                 } else {
@@ -359,7 +400,7 @@ impl CPU {
                 //124 clock cycles
                 self.pc += 2;
                 println!("reset")
-            },
+            }
 
             //jmp
             (..) if opcode & 0b1111111111000000 == 0b0100111011000000 => {
@@ -370,33 +411,18 @@ impl CPU {
                         let jump = self.a[reg as usize];
                         println!("jmp A{:x}", reg);
                         self.pc = jump
+                    }
+                    0b101 => unimplemented!(),
+                    0b110 => unimplemented!(),
+                    0b111 => match reg {
+                        0b000 => unimplemented!(),
+                        0b001 => unimplemented!(),
+                        0b010 => unimplemented!(),
+                        0b011 => unimplemented!(),
+                        _ => panic!("invalid jmp {:016b}", opcode),
                     },
-                    0b101 => {
-                        unimplemented!()
-                    },
-                    0b110 => {
-                        unimplemented!()
-                    },
-                    0b111 => {
-                        match reg {
-                            0b000 => {
-                                unimplemented!()
-                            },
-                            0b001 => {
-                                unimplemented!()
-                            },
-                            0b010 => {
-                                unimplemented!()
-                            },
-                            0b011 => {
-                                unimplemented!()
-                            },
-                            _ => panic!("invalid jmp {:016b}", opcode)
-                        }
-                    },
-                    _ => panic!("invalid jmp {:016b}", opcode)
+                    _ => panic!("invalid jmp {:016b}", opcode),
                 }
-
             }
             //cmpi #<data>, <ea>
             //Destination - Immediate Data
@@ -417,7 +443,10 @@ impl CPU {
                             let displacement = self.mmu.read_word(self.pc + 6) as u32;
                             let destination = self.a[an_reg as usize] + displacement;
                             let result = destination.wrapping_sub(immediate);
-                            println!("cmpi.l #${:x},(A{},${:x}) == ${:x}", immediate, an_reg, displacement, destination);
+                            println!(
+                                "cmpi.l #${:x},(A{},${:x}) == ${:x}",
+                                immediate, an_reg, displacement, destination
+                            );
 
                             let sn = immediate & 1 << 31 != 0;
                             let dn = destination & 1 << 31 != 0;
@@ -443,9 +472,8 @@ impl CPU {
                             self.ccr &= !ccr::NZVC;
                             self.ccr |= set & ccr::NZVC;
 
-                            
                             self.pc += 8
-                        },
+                        }
                         //Absolute Long
                         (0b111, 0b001) => {
                             let immediate = self.mmu.read_long(self.pc + 2);
@@ -487,7 +515,7 @@ impl CPU {
                     //should be impossible size is only 2 bit
                     _ => panic!("invalid size"),
                 }
-            },
+            }
             //lea
             (..) if opcode & 0b1111000111000000 == 0b0100000111000000 => {
                 let an = (opcode >> 9) & 0b111;
@@ -495,29 +523,29 @@ impl CPU {
                 let xn = opcode & 0b111;
 
                 match (m, xn) {
-                    (0b010, r) => {
+                    (0b010, _r) => {
                         //(An)
                         todo!();
-                    },
-                    (0b101, r) => {
+                    }
+                    (0b101, _r) => {
                         //(d16, An)
                         todo!();
-                    },
-                    (0b110, r) => {
+                    }
+                    (0b110, _r) => {
                         //(d8, An)
                         todo!();
-                    },
+                    }
                     (0b111, 0b000) => {
                         //(xxx).W,
                         todo!();
-                    },
+                    }
                     (0b111, 0b001) => {
                         //(xxx).L
                         let address = self.mmu.read_long(self.pc + 2);
                         self.a[an as usize] = address;
                         println!("lea.l {:08x},{}", address, an);
                         self.pc += 6
-                    },
+                    }
                     (0b111, 0b010) => {
                         //pc with word displacement
                         //(d16, PC)
@@ -525,19 +553,16 @@ impl CPU {
                         self.a[an as usize] = self.pc + 2 + displacement as u32;
                         println!("lea.l (PC,${:04x}), a{}", displacement, an);
                         self.pc += 4;
-                    },
+                    }
                     (0b111, 0b011) => {
                         //(d8, PC, Xn)
                         todo!();
-                    },
-                    _ => panic!("invalid mode/reg for lea")
-
+                    }
+                    _ => panic!("invalid mode/reg for lea"),
                 }
-                
-                
-            },
+            }
             //suba
-            (0b1001,..)  => {
+            (0b1001, ..) => {
                 let register = opcode >> 9 & 0b111;
                 let op_mode = opcode >> 6 & 0b111;
                 let mode = opcode >> 3 & 0b111;
@@ -546,16 +571,16 @@ impl CPU {
                     0b000 => {
                         //Dn
                         todo!();
-                    },
+                    }
                     0b001 => {
                         //An
                         match op_mode {
                             //suba.w
                             0b011 => {
-                                //note: Word operation. The source operand is sign-extended to a long operand and 
+                                //note: Word operation. The source operand is sign-extended to a long operand and
                                 //the operation is performed on the address register using all 32 bits.
                                 todo!();
-                            },
+                            }
                             //suba.l
                             0b111 => {
                                 let dest = self.a[register as usize];
@@ -564,58 +589,58 @@ impl CPU {
                                 println!("suba.l a{},a{}", ea_reg, register);
                                 self.a[register as usize] = result;
                                 self.pc += 2;
-                            },
-                            _ => panic!("invalid suba instruction {0:016b} ${0:x}", opcode)
-                        } 
-                    },
+                            }
+                            _ => panic!("invalid suba instruction {0:016b} ${0:x}", opcode),
+                        }
+                    }
                     0b010 => {
                         //(An)
                         todo!();
-                    },
+                    }
                     0b011 => {
                         //(An)+
                         todo!();
-                    },
+                    }
                     0b100 => {
                         //-(An)
                         todo!();
-                    },
+                    }
                     0b101 => {
                         //(d16,An)
                         todo!();
-                    },
+                    }
                     0b110 => {
                         //(d8,An,Xn)
                         todo!();
-                    },
+                    }
                     0b111 => {
                         match ea_reg {
                             0b000 => {
-                            //(xxx).W
-                            todo!();
-                        },
+                                //(xxx).W
+                                todo!();
+                            }
                             0b001 => {
-                            //(xxx).L
-                            todo!();
-                        },
+                                //(xxx).L
+                                todo!();
+                            }
                             0b100 => {
-                            //#<data>
-                            todo!();
-                        },
+                                //#<data>
+                                todo!();
+                            }
                             0b010 => {
-                            //(d16,PC)
-                            todo!();
-                        },
+                                //(d16,PC)
+                                todo!();
+                            }
                             0b011 => {
-                            //(d8,PC,Xn)
-                            todo!();
-                        },
-                        _ => panic!("invalid suba instruction {0:016b} ${0:x}", opcode)
+                                //(d8,PC,Xn)
+                                todo!();
+                            }
+                            _ => panic!("invalid suba instruction {0:016b} ${0:x}", opcode),
                         }
                     }
-                    _ => panic!("invalid suba instruction {0:016b} ${0:x}", opcode)
+                    _ => panic!("invalid suba instruction {0:016b} ${0:x}", opcode),
                 }
-            },
+            }
             _ => panic!(
                 "unknown {:04b} {:04b} {:04b} {:04b} {:04x}",
                 op_1, op_2, op_3, op_4, opcode
