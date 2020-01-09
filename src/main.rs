@@ -1,4 +1,4 @@
-use busy_bee::mmu::Mmu;
+use busy_bee::mmu::{Mmu, Sound};
 use busy_bee::CPU;
 use std::fs;
 use std::io;
@@ -19,8 +19,8 @@ fn main() -> Result<(), io::Error> {
             rom: rom,
             cart: vec![0],
             memory: vec![0; 1048576],
-            ym2149: [0; 4],
-            video_display: [0; 96],
+            memory_configuration: 0b0101, //101 = 512/512
+            sound: Sound::new()
         },
     };
 
@@ -42,6 +42,11 @@ fn main() -> Result<(), io::Error> {
     cpu.step();
     cpu.step();
     cpu.step();
+    cpu.step();
+    cpu.step();
+    cpu.step();
+    cpu.step();
     println!("\r\n{:?}", cpu);
+    println!("0xffff8800 {0:08x} {0:08b}", cpu.mmu.read_byte(0xff8800));
     Ok(())
 }
