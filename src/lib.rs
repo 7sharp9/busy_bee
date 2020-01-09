@@ -44,7 +44,6 @@ impl std::fmt::Display for OperationSize {
         };
         write!(f, "{}", display)
     }
-
 }
 
 impl OperationSize {
@@ -317,6 +316,8 @@ impl CPU {
 
         match (op_1, op_2, op_3, op_4) {
             //(0b0000, 0b0000, _, _) => println!("ori to ccr"),
+
+            //move
             (..) if op_1 & 0b1100 == 0 && byte_word_or_long(op_1) => {
                 let size = size_from_two_bits_one_indexed(op_1).expect("invalid size");
 
@@ -324,7 +325,7 @@ impl CPU {
                 let destination_mode = opcode >> 6 & 0b111;
                 let source_mode = opcode >> 3 & 0b111;
                 let source_reg = opcode & 0b111;
-
+                let mut pc_increment = 2;
 
                 let source = match source_mode {
                     0b000 => unimplemented!(),
@@ -348,9 +349,18 @@ impl CPU {
                                 //#<data>
                                 match size {
                                     //only read lower byte information of the word
-                                    OperationSize::Byte => (self.mmu.read_word(self.pc + 2) & 0xff) as u32,
-                                    OperationSize::Word => self.mmu.read_word(self.pc + 2) as u32,
-                                    OperationSize::Long => self.mmu.read_long(self.pc + 2)
+                                    OperationSize::Byte => {
+                                        pc_increment += 2;
+                                        (self.mmu.read_word(self.pc + 2) & 0xff) as u32
+                                    }
+                                    OperationSize::Word => {
+                                        pc_increment += 2;
+                                        self.mmu.read_word(self.pc + 2) as u32
+                                    }
+                                    OperationSize::Long => {
+                                        pc_increment += 4;
+                                        self.mmu.read_long(self.pc + 2)
+                                    }
                                 }
                             }
                             0b010 => {
@@ -369,12 +379,15 @@ impl CPU {
 
                 let destination = match destination_mode {
                     0b000 => unimplemented!(),
-                    0b010 => {
-                        self.a[destination_reg as usize]
-                    },
+                    0b010 => self.a[destination_reg as usize],
                     0b011 => unimplemented!(),
                     0b100 => unimplemented!(),
-                    0b101 => unimplemented!(),
+                    0b101 => {
+                        //(d16,An)
+                        let displacement = self.mmu.read_word(self.pc + pc_increment) as u32;
+                        pc_increment += 2;
+                        self.a[destination_reg as usize] + displacement
+                    }
                     0b110 => unimplemented!(),
                     0b111 => {
                         match destination_reg {
@@ -394,9 +407,29 @@ impl CPU {
 
                 match size {
                     OperationSize::Byte => self.mmu.write_byte(destination, source as u8),
-                    _ => unimplemented!()
+                    _ => unimplemented!(),
                 }
-                println!("move.{} {},{}", size, source, destination)
+
+                //Should bb the same for:
+                //AND, ANDI, OR, EOR, EORI, MOVE, MOVEQ, EXT, NOT, TST
+                let mut set = 0;
+                if source & 0xff == 0 {
+                    set |= ccr::Z
+                } else if source
+                    & match size {
+                        OperationSize::Byte => 0x80,
+                        OperationSize::Word => 0x8000,
+                        OperationSize::Long => 0x80000000,
+                    }
+                    != 0
+                {
+                    set |= ccr::N
+                }
+                self.ccr &= !ccr::NZVC;
+                self.ccr |= set & ccr::NZVC;
+
+                println!("move.{} ${:0x},${:0x}", size, source, destination);
+                self.pc += pc_increment
             }
             //Bra, Bcc, Bsr
             (0b0110, condition, ..) => {
