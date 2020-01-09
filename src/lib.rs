@@ -567,6 +567,8 @@ impl CPU {
                                 immediate, an_reg, displacement, destination
                             );
 
+                            //CMP, CMPA, CMPI, CMPM
+                            //currently only long flags are calculated, byte being val & ! << 7 != 0 etc
                             let sn = immediate & 1 << 31 != 0;
                             let dn = destination & 1 << 31 != 0;
                             let rn = result & 1 << 31 != 0;
