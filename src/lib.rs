@@ -317,7 +317,8 @@ impl CPU {
         match (op_1, op_2, op_3, op_4) {
             //(0b0000, 0b0000, _, _) => println!("ori to ccr"),
 
-            //move
+            //move <ea>, <ea>
+            // CC NZVC V/C are cleared, NZ as per result
             (..) if op_1 & 0b1100 == 0 && byte_word_or_long(op_1) => {
                 let size = size_from_two_bits_one_indexed(op_1).expect("invalid size");
 
@@ -410,7 +411,7 @@ impl CPU {
                     _ => unimplemented!(),
                 }
 
-                //Should bb the same for:
+                //Should be the same for:
                 //AND, ANDI, OR, EOR, EORI, MOVE, MOVEQ, EXT, NOT, TST
                 let mut set = 0;
                 if source & 0xff == 0 {
@@ -432,6 +433,7 @@ impl CPU {
                 self.pc += pc_increment
             }
             //Bra, Bcc, Bsr
+            //CC none
             (0b0110, condition, ..) => {
                 match condition {
                     //Bra
@@ -500,7 +502,7 @@ impl CPU {
                 }
             }
 
-            //Move to SR
+            //Move to SR, All CC bits affected as this is moving a word to CCR
             (0b0100, 0b0110, part, _) if part & 0b1100 == 0b1100 => {
                 let mode = (opcode & 0b0000000000111000) >> 3;
                 let reg = opcode & 0b0000000000000111;
@@ -515,13 +517,15 @@ impl CPU {
                 }
             }
             //reset
+            //CC none
             (0b0100, 0b1110, 0b0111, 0b0000) => {
                 //124 clock cycles
                 self.pc += 2;
                 println!("reset")
             }
 
-            //jmp
+            //jmp <ea>
+            //CC none
             (..) if opcode & 0b1111111111000000 == 0b0100111011000000 => {
                 let mode = (opcode & 0b0000000000111000) >> 3;
                 let reg = opcode & 0b0000000000000111;
@@ -544,6 +548,7 @@ impl CPU {
                 }
             }
             //cmpi #<data>, <ea>
+            //CC NZVC
             //Destination - Immediate Data
             (0b0000, 0b1100, ..) => {
                 let size = (opcode & 0b0000000011000000) >> 6;
@@ -603,6 +608,8 @@ impl CPU {
                             //let result = dest.wrapping_sub(immediate);
                             let result = destination - immediate;
 
+                            //CMP, CMPA, CMPI, CMPM
+                            //currently only long flags are calculated, byte being val & ! << 7 != 0 etc
                             let sn = immediate & 1 << 31 != 0;
                             let dn = destination & 1 << 31 != 0;
                             let rn = result & 1 << 31 != 0;
@@ -638,6 +645,7 @@ impl CPU {
                 }
             }
             //lea
+            //CC none
             (..) if opcode & 0b1111000111000000 == 0b0100000111000000 => {
                 let an = (opcode >> 9) & 0b111;
                 let m = (opcode >> 3) & 0b111;
@@ -683,6 +691,7 @@ impl CPU {
                 }
             }
             //suba
+            //CC none
             (0b1001, ..) => {
                 let register = opcode >> 9 & 0b111;
                 let op_mode = opcode >> 6 & 0b111;
