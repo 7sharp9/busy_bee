@@ -297,32 +297,13 @@ impl CPU {
         let op_3 = (opcode & 0x00F0) >> 4;
         let op_4 = opcode & 0x000F;
 
-        #[inline]
-        fn byte_word_or_long(op: u16) -> bool {
-            match op {
-                0b00 => false,
-                _ => true,
-            }
-        }
-
-        #[inline]
-        fn size_from_two_bits_one_indexed(size: u16) -> Option<OperationSize> {
-            match size & 0b011 {
-                0b00 => None,
-                0b01 => Some(OperationSize::Byte),
-                0b11 => Some(OperationSize::Word),
-                0b10 => Some(OperationSize::Long),
-                _ => None,
-            }
-        }
-
         match (op_1, op_2, op_3, op_4) {
             //(0b0000, 0b0000, _, _) => println!("ori to ccr"),
 
             //move <ea>, <ea>
             // CC NZVC V/C are cleared, NZ as per result
-            (..) if op_1 & 0b1100 == 0 && byte_word_or_long(op_1) => {
-                let size = size_from_two_bits_one_indexed(op_1).expect("invalid size");
+            (..) if op_1 & 0b1100 == 0 && CPU::byte_word_or_long(op_1) => {
+                let size = CPU::size_from_two_bits_one_indexed(op_1).expect("invalid size");
 
                 let destination_reg = opcode >> 9 & 0b111;
                 let destination_mode = opcode >> 6 & 0b111;
