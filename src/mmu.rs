@@ -140,7 +140,7 @@ impl Mmu {
         }
     }
 
-    pub fn read_word(& mut self, address: u32) -> u16 {
+    pub fn read_word(&self, address: u32) -> u16 {
         match address {
             0..7 => word_from_slice(&self.rom, address),
             ROM_START..ROM_END => {
