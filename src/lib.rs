@@ -8,6 +8,8 @@ use self::TraceMode::*;
 use num_traits::FromPrimitive;
 use std::fmt;
 
+use quark::Signs;
+
 pub mod mmu;
 
 macro_rules! n_flag {
@@ -385,7 +387,7 @@ impl CPU {
                     0b100 => unimplemented!(),
                     0b101 => {
                         //(d16,An)
-                        let displacement = self.mmu.read_word(self.pc + pc_increment) as u32;
+                        let displacement = (self.mmu.read_word(self.pc + pc_increment) as u32).sign_extend(16);
                         pc_increment += 2;
                         self.a[destination_reg as usize] + displacement
                     }
