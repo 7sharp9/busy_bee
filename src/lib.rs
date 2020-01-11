@@ -469,6 +469,22 @@ impl CPU {
                 println!("move.{} ${:0x},${:0x}", size, source, destination);
                 self.pc += pc_increment
             }
+            //BTST #<data>, <ea>
+            //CC Z is bit tested is zero
+            (0b0000, ..) if opcode & 0b0000000111000000 == 0b0000000100000000 => {
+                let bit_register = (opcode >> 9) & 0b111;
+                let mode = (opcode >> 3) & 0b111;
+                let register = opcode & 0b111;
+                todo!()
+            }
+            //BTST Immediate #, <ea>
+            //CC Z is bit tested is zero
+            (0b0000, 0b1000, ..) if opcode & 0b0000000011000000 == 0 => {
+                let mode = (opcode >> 3) & 0b111;
+                let register = opcode & 0b111;
+                let bit_index = self.mmu.read_word(self.pc + 2);
+                todo!()
+            }
             //Bra, Bcc, Bsr
             //CC none
             (0b0110, condition, ..) => {
