@@ -37,6 +37,41 @@ pub enum OperationSize {
     Long,
 }
 
+pub enum AddressingMode {
+    DataRegister(u8),
+    AddressRegister(u8),
+    Address(u8),
+    AddressWithPostincrement(u8),
+    AddressWithPredecrement(u8),
+    AddressWithDisplacement(u8),
+    AddressWithIndex(u8),
+    ProgramCounterWithDisplacement,
+    ProgramCounterWithIndex,
+    AbsoluteShort,
+    AbsoluteLong,
+    Immediate,
+}
+
+impl AddressingMode {
+    fn parse(mode: u8, reg: u8) -> AddressingMode {
+        match (mode, reg) {
+            (0b000, 0..=7) => AddressingMode::DataRegister(reg),
+            (0b001, 0..=7) => AddressingMode::AddressRegister(reg),
+            (0b010, 0..=7) => AddressingMode::AddressRegister(reg),
+            (0b011, 0..=7) => AddressingMode::AddressWithPostincrement(reg),
+            (0b100, 0..=7) => AddressingMode::AddressWithPredecrement(reg),
+            (0b101, 0..=7) => AddressingMode::AddressWithDisplacement(reg),
+            (0b110, 0..=7) => AddressingMode::AddressWithIndex(reg),
+            (0b111, 0b010) => AddressingMode::ProgramCounterWithDisplacement,
+            (0b111, 0b011) => AddressingMode::ProgramCounterWithIndex,
+            (0b111, 0b000) => AddressingMode::AbsoluteShort,
+            (0b111, 0b001) => AddressingMode::AbsoluteLong,
+            (0b111, 0b100) => AddressingMode::Immediate,
+            _ => panic!("Invalid Addressing Mode: {} {}", mode, reg),
+        }
+    }
+}
+
 impl std::fmt::Display for OperationSize {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let display = match self {
