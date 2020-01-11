@@ -325,6 +325,25 @@ impl CPU {
         self.pc = self.mmu.read_long(4) as u32;
     }
 
+    #[inline]
+    fn byte_word_or_long(op: u16) -> bool {
+        match op {
+            0b00 => false,
+            _ => true,
+        }
+    }
+
+    #[inline]
+    fn size_from_two_bits_one_indexed(size: u16) -> Option<OperationSize> {
+        match size & 0b011 {
+            0b00 => None,
+            0b01 => Some(OperationSize::Byte),
+            0b11 => Some(OperationSize::Word),
+            0b10 => Some(OperationSize::Long),
+            _ => None,
+        }
+    }
+
     pub fn step(&mut self) {
         let opcode = self.mmu.read_word(self.pc);
         let op_1 = (opcode & 0xF000) >> 12;
