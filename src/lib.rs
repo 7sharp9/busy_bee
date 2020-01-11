@@ -555,7 +555,8 @@ impl CPU {
                 }
             }
 
-            //Move to SR, All CC bits affected as this is moving a word to CCR
+            //Move to SR
+            //All CC bits affected as this is moving a word to CCR
             (0b0100, 0b0110, part, _) if part & 0b1100 == 0b1100 => {
                 let mode = (opcode & 0b0000000000111000) >> 3;
                 let reg = opcode & 0b0000000000000111;
