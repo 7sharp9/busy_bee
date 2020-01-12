@@ -530,14 +530,14 @@ impl CPU {
             (0b0100, 0b0110, part, _) if part & 0b1100 == 0b1100 => {
                 let mode = (opcode & 0b0000000000111000) >> 3;
                 let reg = opcode & 0b0000000000000111;
-                match (mode, reg) {
-                    (0b0111, 0b0100) => {
+                match AddressingMode::parse(mode as u8, reg as u8) {
+                    AddressingMode::Immediate => {
                         let imm = self.mmu.read_word(self.pc + 2);
                         self.ccr = imm;
                         self.pc += 4;
                         println!("move #{:0x},sr", imm)
                     }
-                    _ => unimplemented!("move      {}{}", mode, reg),
+                    _ => unimplemented!("move      mode: {:03b} reg: {:03b}", mode, reg),
                 }
             }
             //reset
@@ -553,22 +553,19 @@ impl CPU {
             (..) if opcode & 0b1111111111000000 == 0b0100111011000000 => {
                 let mode = (opcode & 0b0000000000111000) >> 3;
                 let reg = opcode & 0b0000000000000111;
-                match mode {
-                    0b010 => {
+                match AddressingMode::parse(mode as u8, reg as u8) {
+                    AddressingMode::Address(reg) => {
                         let jump = self.a[reg as usize];
                         println!("jmp A{:x}", reg);
                         self.pc = jump
                     }
-                    0b101 => unimplemented!(),
-                    0b110 => unimplemented!(),
-                    0b111 => match reg {
-                        0b000 => unimplemented!(),
-                        0b001 => unimplemented!(),
-                        0b010 => unimplemented!(),
-                        0b011 => unimplemented!(),
-                        _ => panic!("invalid jmp {:016b}", opcode),
-                    },
-                    _ => panic!("invalid jmp {:016b}", opcode),
+                    AddressingMode::AddressWithDisplacement(_reg) => unimplemented!(),
+                    AddressingMode::AddressWithIndex(_reg) => unimplemented!(),
+                    AddressingMode::AbsoluteShort => unimplemented!(),
+                    AddressingMode::AbsoluteLong => unimplemented!(),
+                    AddressingMode::ProgramCounterWithDisplacement => unimplemented!(),
+                    AddressingMode::ProgramCounterWithIndex => unimplemented!(),
+                    _ => panic!("invalid jmp mode {:03b} reg: {:03b}", mode, reg),
                 }
             }
             //cmpi #<data>, <ea>
@@ -672,45 +669,27 @@ impl CPU {
             //CC none
             (..) if opcode & 0b1111000111000000 == 0b0100000111000000 => {
                 let an = (opcode >> 9) & 0b111;
-                let m = (opcode >> 3) & 0b111;
-                let xn = opcode & 0b111;
+                let mode = (opcode >> 3) & 0b111;
+                let reg = opcode & 0b111;
 
-                match (m, xn) {
-                    (0b010, _r) => {
-                        //(An)
-                        todo!();
-                    }
-                    (0b101, _r) => {
-                        //(d16, An)
-                        todo!();
-                    }
-                    (0b110, _r) => {
-                        //(d8, An)
-                        todo!();
-                    }
-                    (0b111, 0b000) => {
-                        //(xxx).W,
-                        todo!();
-                    }
-                    (0b111, 0b001) => {
-                        //(xxx).L
+                match AddressingMode::parse(mode as u8, reg as u8) {
+                    AddressingMode::Address(_reg) => todo!(),
+                    AddressingMode::AddressWithDisplacement(_reg) => todo!(),
+                    AddressingMode::AddressWithIndex(_reg) => todo!(),
+                    AddressingMode::AbsoluteShort => todo!(),
+                    AddressingMode::AbsoluteLong => {
                         let address = self.mmu.read_long(self.pc + 2);
                         self.a[an as usize] = address;
                         println!("lea.l {:08x},{}", address, an);
                         self.pc += 6
                     }
-                    (0b111, 0b010) => {
-                        //pc with word displacement
-                        //(d16, PC)
+                    AddressingMode::ProgramCounterWithDisplacement => {
                         let displacement = self.mmu.read_word(self.pc + 2);
                         self.a[an as usize] = self.pc + 2 + displacement as u32;
                         println!("lea.l (PC,${:04x}), a{}", displacement, an);
                         self.pc += 4;
                     }
-                    (0b111, 0b011) => {
-                        //(d8, PC, Xn)
-                        todo!();
-                    }
+                    AddressingMode::ProgramCounterWithIndex => todo!(),
                     _ => panic!("invalid mode/reg for lea"),
                 }
             }
