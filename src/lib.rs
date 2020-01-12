@@ -365,83 +365,55 @@ impl CPU {
                 let source_reg = opcode & 0b111;
                 let mut pc_increment = 2;
 
-                let source = match source_mode {
-                    0b000 => unimplemented!(),
-                    0b001 => unimplemented!(),
-                    0b010 => unimplemented!(),
-                    0b011 => unimplemented!(),
-                    0b100 => unimplemented!(),
-                    0b101 => unimplemented!(),
-                    0b110 => unimplemented!(),
-                    0b111 => {
-                        match source_reg {
-                            0b000 => {
-                                //(xxx).W
-                                unimplemented!()
+                let source = match AddressingMode::parse(source_mode as u8, source_reg as u8) {
+                    AddressingMode::DataRegister(_reg) => unimplemented!(),
+                    AddressingMode::AddressRegister(_reg) => unimplemented!(),
+                    AddressingMode::Address(_reg) => unimplemented!(),
+                    AddressingMode::AddressWithPostincrement(_reg) => unimplemented!(),
+                    AddressingMode::AddressWithPredecrement(_reg) => unimplemented!(),
+                    AddressingMode::AddressWithDisplacement(_reg) => unimplemented!(),
+                    AddressingMode::AddressWithIndex(_reg) => unimplemented!(),
+                    AddressingMode::ProgramCounterWithDisplacement => unimplemented!(),
+                    AddressingMode::ProgramCounterWithIndex => unimplemented!(),
+                    AddressingMode::AbsoluteShort => unimplemented!(),
+                    AddressingMode::AbsoluteLong => unimplemented!(),
+                    AddressingMode::Immediate => {
+                        match size {
+                            //only read lower byte information of the word
+                            OperationSize::Byte => {
+                                pc_increment += 2;
+                                (self.mmu.read_word(self.pc + 2) & 0xff) as u32
                             }
-                            0b001 => {
-                                //(xxx).L
-                                unimplemented!()
+                            OperationSize::Word => {
+                                pc_increment += 2;
+                                self.mmu.read_word(self.pc + 2) as u32
                             }
-                            0b100 => {
-                                //#<data>
-                                match size {
-                                    //only read lower byte information of the word
-                                    OperationSize::Byte => {
-                                        pc_increment += 2;
-                                        (self.mmu.read_word(self.pc + 2) & 0xff) as u32
-                                    }
-                                    OperationSize::Word => {
-                                        pc_increment += 2;
-                                        self.mmu.read_word(self.pc + 2) as u32
-                                    }
-                                    OperationSize::Long => {
-                                        pc_increment += 4;
-                                        self.mmu.read_long(self.pc + 2)
-                                    }
-                                }
+                            OperationSize::Long => {
+                                pc_increment += 4;
+                                self.mmu.read_long(self.pc + 2)
                             }
-                            0b010 => {
-                                //(d16,PC)
-                                unimplemented!()
-                            }
-                            0b011 => {
-                                //(d8,PC,Xn)
-                                unimplemented!()
-                            }
-                            _ => panic!("invalid destination address for move: {:016b}", opcode),
                         }
                     }
-                    _ => panic!("invalid destination address for move: {:016b}", opcode),
                 };
 
-                let destination = match destination_mode {
-                    0b000 => unimplemented!(),
-                    0b010 => self.a[destination_reg as usize],
-                    0b011 => unimplemented!(),
-                    0b100 => unimplemented!(),
-                    0b101 => {
-                        //(d16,An)
-                        let displacement = (self.mmu.read_word(self.pc + pc_increment) as u32).sign_extend(16);
-                        pc_increment += 2;
-                        self.a[destination_reg as usize] + displacement
-                    }
-                    0b110 => unimplemented!(),
-                    0b111 => {
-                        match destination_reg {
-                            0b000 => {
-                                //(xxx).W
-                                unimplemented!()
-                            }
-                            0b001 => {
-                                //(xxx).L
-                                unimplemented!()
-                            }
-                            _ => panic!("invalid destination address for move: {:016b}", opcode),
+                let destination =
+                    match AddressingMode::parse(destination_mode as u8, destination_reg as u8) {
+                        AddressingMode::DataRegister(_reg) => unimplemented!(),
+                        AddressingMode::Address(reg) => self.a[reg as usize],
+                        AddressingMode::AddressWithPostincrement(_reg) => unimplemented!(),
+                        AddressingMode::AddressWithPredecrement(_reg) => unimplemented!(),
+                        AddressingMode::AddressWithDisplacement(_reg) => {
+                            //sign extend the displacement
+                            let displacement =
+                                (self.mmu.read_word(self.pc + pc_increment) as u32).sign_extend(16);
+                            pc_increment += 2;
+                            self.a[destination_reg as usize] + displacement
                         }
-                    }
-                    _ => panic!("invalid destination address for move: {:016b}", opcode),
-                };
+                        AddressingMode::AddressWithIndex(_reg) => unimplemented!(),
+                        AddressingMode::AbsoluteShort => unimplemented!(),
+                        AddressingMode::AbsoluteLong => unimplemented!(),
+                        _ => panic!("invalid addressing mode: {:0b} {:0b}",),
+                    };
 
                 match size {
                     OperationSize::Byte => self.mmu.write_byte(destination, source as u8),
