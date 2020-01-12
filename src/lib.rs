@@ -57,7 +57,7 @@ impl AddressingMode {
         match (mode, reg) {
             (0b000, 0..=7) => AddressingMode::DataRegister(reg),
             (0b001, 0..=7) => AddressingMode::AddressRegister(reg),
-            (0b010, 0..=7) => AddressingMode::AddressRegister(reg),
+            (0b010, 0..=7) => AddressingMode::Address(reg),
             (0b011, 0..=7) => AddressingMode::AddressWithPostincrement(reg),
             (0b100, 0..=7) => AddressingMode::AddressWithPredecrement(reg),
             (0b101, 0..=7) => AddressingMode::AddressWithDisplacement(reg),
