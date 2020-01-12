@@ -470,13 +470,14 @@ impl CPU {
                                 println!("bra.l ${:06x}", self.pc)
                             }
                             0x00 => {
-                                //word displacement
-                                self.pc += self.mmu.read_word(self.pc + 2) as u32 + 2;
+                                //word displacement, sign extended
+                                self.pc +=
+                                    (self.mmu.read_word(self.pc + 2) as u32 + 2).sign_extend(16);
                                 println!("bra.w ${:06x}", self.pc)
                             }
                             byte => {
-                                //byte displacement
-                                self.pc += (byte as u32) + 2;
+                                //byte displacement, sign extend
+                                self.pc += ((byte as u32) + 2).sign_extend(24);
                                 println!("bra.s ${:06x}", self.pc)
                             }
                         }
@@ -490,34 +491,31 @@ impl CPU {
                         let displacement = opcode & 0xFF;
                         let displacement_size = OperationSize::from_u16(displacement);
                         //this is the same as Bra
+                        println!(
+                            "b{}.{} ${:06x} ({})",
+                            condition, displacement_size, self.pc, condition_true
+                        );
                         match displacement_size {
                             OperationSize::Long => {
-                                println!("b{}.l ${:06x} ({})", condition, self.pc, condition_true);
                                 if condition_true {
-                                    let displacement = self.mmu.read_long(self.pc + 2);
-                                    self.pc += displacement + 2;
+                                    let displacement = self.mmu.read_long(self.pc + 2) + 2;
+                                    self.pc += displacement;
                                 } else {
                                     self.pc += 6
                                 }
                             }
                             OperationSize::Word => {
-                                println!("b{}.w ${:06x} ({})", condition, self.pc, condition_true);
                                 if condition_true {
-                                    let displacement = self.mmu.read_word(self.pc + 2) as u32;
-                                    self.pc += displacement + 2;
+                                    let displacement = (self.mmu.read_word(self.pc + 2) as u32 + 2)
+                                        .sign_extend(16);
+                                    self.pc += displacement
                                 } else {
                                     self.pc += 4
                                 }
                             }
                             OperationSize::Byte => {
-                                println!(
-                                    "b{}.b ${:06x} ({})",
-                                    condition,
-                                    self.pc + displacement as u32 + 2,
-                                    condition_true
-                                );
                                 if condition_true {
-                                    self.pc += (displacement as u32) + 2;
+                                    self.pc += (displacement as u32 + 2).sign_extend(24);
                                 } else {
                                     self.pc += 2
                                 }
