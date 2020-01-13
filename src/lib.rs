@@ -4,9 +4,9 @@
 #[macro_use]
 extern crate num_derive;
 
-use std::convert::TryInto;
 use self::TraceMode::*;
 use num_traits::FromPrimitive;
+use std::convert::TryInto;
 use std::fmt;
 
 use quark::BitIndex;
@@ -373,7 +373,15 @@ impl CPU {
                     AddressingMode::DataRegister(_reg) => unimplemented!(),
                     AddressingMode::AddressRegister(_reg) => unimplemented!(),
                     AddressingMode::Address(_reg) => unimplemented!(),
-                    AddressingMode::AddressWithPostincrement(_reg) => unimplemented!(),
+                    AddressingMode::AddressWithPostincrement(reg) => {
+                        let address = self.a[reg as usize];
+                        self.a[reg as usize] += match size {
+                            OperationSize::Byte => 1,
+                            OperationSize::Word => 2,
+                            OperationSize::Long => 4,
+                        };
+                        address
+                    }
                     AddressingMode::AddressWithPredecrement(_reg) => unimplemented!(),
                     AddressingMode::AddressWithDisplacement(_reg) => unimplemented!(),
                     AddressingMode::AddressWithIndex(_reg) => unimplemented!(),
@@ -404,12 +412,11 @@ impl CPU {
                     AddressingMode::DataRegister(reg) => {
                         println!("move.{} ${:0x},d{}", size, source, reg);
                         match size {
-                            OperationSize::Byte => self.d[reg as usize] |= source & 0xff ,
+                            OperationSize::Byte => self.d[reg as usize] |= source & 0xff,
                             OperationSize::Word => self.d[reg as usize] |= source & 0xffff,
                             OperationSize::Long => self.d[reg as usize] = source,
                         }
-                        
-                    },
+                    }
                     AddressingMode::Address(reg) => {
                         let destination = self.a[reg as usize];
                         println!("move.{} ${:0x},(a{})", size, source, reg);
@@ -418,7 +425,7 @@ impl CPU {
                             OperationSize::Word => unimplemented!(),
                             OperationSize::Long => unimplemented!(),
                         }
-                    },
+                    }
                     AddressingMode::AddressWithPostincrement(_reg) => unimplemented!(),
                     AddressingMode::AddressWithPredecrement(_reg) => unimplemented!(),
                     AddressingMode::AddressWithDisplacement(reg) => {
@@ -726,7 +733,8 @@ impl CPU {
                     }
                     AddressingMode::ProgramCounterWithDisplacement => {
                         let displacement = (self.mmu.read_word(self.pc + 2) as i32).sign_extend(16);
-                        self.a[an as usize] = (self.pc as i32 + 2 + displacement).try_into().unwrap();
+                        self.a[an as usize] =
+                            (self.pc as i32 + 2 + displacement).try_into().unwrap();
                         println!("lea.l (PC,${:04x}), a{}", displacement, an);
                         self.pc += 4;
                     }
