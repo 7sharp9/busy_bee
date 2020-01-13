@@ -8,6 +8,8 @@ use self::TraceMode::*;
 use num_traits::FromPrimitive;
 use std::fmt;
 
+use quark::BitIndex;
+use quark::BitMask;
 use quark::Signs;
 
 pub mod mmu;
@@ -37,6 +39,7 @@ pub enum OperationSize {
     Long,
 }
 
+#[derive(Debug)]
 pub enum AddressingMode {
     DataRegister(u8),
     AddressRegister(u8),
@@ -453,9 +456,27 @@ impl CPU {
             //CC Z is bit tested is zero
             (0b0000, 0b1000, ..) if opcode & 0b0000000011000000 == 0 => {
                 let mode = (opcode >> 3) & 0b111;
-                let register = opcode & 0b111;
-                let bit_index = self.mmu.read_word(self.pc + 2);
-                todo!()
+                let reg = opcode & 0b111;
+                let bit_index = self.mmu.read_word(self.pc + 2) & 0xff;
+                match AddressingMode::parse(mode as u8, reg as u8) {
+                    AddressingMode::ProgramCounterWithDisplacement => {
+                        //let displacement1 = (self.mmu.read_word(self.pc + 4) as u32).sign_extend(16);
+                        let displacement = (self.mmu.read_word(self.pc + 4) as i32).sign_extend(16);
+                        let address = self.pc as i32 + displacement + 4;
+                        let bit_set = address.bit(bit_index as usize);
+                        println!("btst.b #${:04}, (PC, {:08x}) == {:08x}", bit_index, displacement, address);
+                        if bit_set {
+                            self.ccr |= ccr::Z
+                        } else {
+                            self.ccr &= !ccr::Z
+                        }
+                        self.pc += 6
+                    }
+                    other => panic!(
+                        "BTST address mode {:?} not implemented mode {:03b} reg: {:03b}",
+                        other, mode, reg
+                    ),
+                }
             }
             //Bra, Bcc, Bsr
             //CC none
@@ -684,8 +705,8 @@ impl CPU {
                         self.pc += 6
                     }
                     AddressingMode::ProgramCounterWithDisplacement => {
-                        let displacement = self.mmu.read_word(self.pc + 2);
-                        self.a[an as usize] = self.pc + 2 + displacement as u32;
+                        let displacement = (self.mmu.read_word(self.pc + 2) as u32).sign_extend(16);
+                        self.a[an as usize] = self.pc + 2 + displacement;
                         println!("lea.l (PC,${:04x}), a{}", displacement, an);
                         self.pc += 4;
                     }
@@ -695,83 +716,39 @@ impl CPU {
             }
             //suba
             //CC none
-            (0b1001, ..) => {
+            (0b1001, ..) if opcode & 0b000000011000000 == 0b0000000011000000 => {
                 let register = opcode >> 9 & 0b111;
-                let op_mode = opcode >> 6 & 0b111;
+                let long_mode = opcode.bit(9);
                 let mode = opcode >> 3 & 0b111;
-                let ea_reg = opcode & 0b111;
-                match mode {
-                    0b000 => {
-                        //Dn
-                        todo!();
-                    }
-                    0b001 => {
-                        //An
-                        match op_mode {
-                            //suba.w
-                            0b011 => {
-                                //note: Word operation. The source operand is sign-extended to a long operand and
-                                //the operation is performed on the address register using all 32 bits.
-                                todo!();
-                            }
+                let reg = opcode & 0b111;
+                match AddressingMode::parse(mode as u8, reg as u8) {
+                    AddressingMode::DataRegister(_reg) => todo!(),
+                    AddressingMode::AddressRegister(reg) => {
+                        if long_mode {
                             //suba.l
-                            0b111 => {
-                                let dest = self.a[register as usize];
-                                let source = self.a[ea_reg as usize];
-                                let result = dest - source;
-                                println!("suba.l a{},a{}", ea_reg, register);
-                                self.a[register as usize] = result;
-                                self.pc += 2;
-                            }
-                            _ => panic!("invalid suba instruction {0:016b} ${0:x}", opcode),
+                            let dest = self.a[register as usize];
+                            let source = self.a[reg as usize];
+                            let result = dest - source;
+                            println!("suba.l a{},a{}", reg, register);
+                            self.a[register as usize] = result;
+                            self.pc += 2;
+                        } else {
+                            //suba.w
+                            //note: Word operation. The source operand is sign-extended to a long operand and
+                            //the operation is performed on the address register using all 32 bits.
+                            todo!();
                         }
                     }
-                    0b010 => {
-                        //(An)
-                        todo!();
-                    }
-                    0b011 => {
-                        //(An)+
-                        todo!();
-                    }
-                    0b100 => {
-                        //-(An)
-                        todo!();
-                    }
-                    0b101 => {
-                        //(d16,An)
-                        todo!();
-                    }
-                    0b110 => {
-                        //(d8,An,Xn)
-                        todo!();
-                    }
-                    0b111 => {
-                        match ea_reg {
-                            0b000 => {
-                                //(xxx).W
-                                todo!();
-                            }
-                            0b001 => {
-                                //(xxx).L
-                                todo!();
-                            }
-                            0b100 => {
-                                //#<data>
-                                todo!();
-                            }
-                            0b010 => {
-                                //(d16,PC)
-                                todo!();
-                            }
-                            0b011 => {
-                                //(d8,PC,Xn)
-                                todo!();
-                            }
-                            _ => panic!("invalid suba instruction {0:016b} ${0:x}", opcode),
-                        }
-                    }
-                    _ => panic!("invalid suba instruction {0:016b} ${0:x}", opcode),
+                    AddressingMode::Address(_reg) => todo!(),
+                    AddressingMode::AddressWithPostincrement(_reg) => todo!(),
+                    AddressingMode::AddressWithPredecrement(_reg) => todo!(),
+                    AddressingMode::AddressWithDisplacement(_reg) => todo!(),
+                    AddressingMode::AddressWithIndex(_reg) => todo!(),
+                    AddressingMode::ProgramCounterWithDisplacement => todo!(),
+                    AddressingMode::ProgramCounterWithIndex => todo!(),
+                    AddressingMode::AbsoluteShort => todo!(),
+                    AddressingMode::AbsoluteLong => todo!(),
+                    AddressingMode::Immediate => todo!(),
                 }
             }
             _ => panic!(
