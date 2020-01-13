@@ -4,6 +4,7 @@
 #[macro_use]
 extern crate num_derive;
 
+use std::convert::TryInto;
 use self::TraceMode::*;
 use num_traits::FromPrimitive;
 use std::fmt;
@@ -399,29 +400,46 @@ impl CPU {
                     }
                 };
 
-                let destination =
-                    match AddressingMode::parse(destination_mode as u8, destination_reg as u8) {
-                        AddressingMode::DataRegister(_reg) => unimplemented!(),
-                        AddressingMode::Address(reg) => self.a[reg as usize],
-                        AddressingMode::AddressWithPostincrement(_reg) => unimplemented!(),
-                        AddressingMode::AddressWithPredecrement(_reg) => unimplemented!(),
-                        AddressingMode::AddressWithDisplacement(_reg) => {
-                            //sign extend the displacement
-                            let displacement =
-                                (self.mmu.read_word(self.pc + pc_increment) as u32).sign_extend(16);
-                            pc_increment += 2;
-                            self.a[destination_reg as usize] + displacement
+                match AddressingMode::parse(destination_mode as u8, destination_reg as u8) {
+                    AddressingMode::DataRegister(reg) => {
+                        println!("move.{} ${:0x},d{}", size, source, reg);
+                        match size {
+                            OperationSize::Byte => self.d[reg as usize] |= source & 0xff ,
+                            OperationSize::Word => self.d[reg as usize] |= source & 0xffff,
+                            OperationSize::Long => self.d[reg as usize] = source,
                         }
-                        AddressingMode::AddressWithIndex(_reg) => unimplemented!(),
-                        AddressingMode::AbsoluteShort => unimplemented!(),
-                        AddressingMode::AbsoluteLong => unimplemented!(),
-                        _ => panic!("invalid addressing mode: {:0b} {:0b}",),
-                    };
+                        
+                    },
+                    AddressingMode::Address(reg) => {
+                        let destination = self.a[reg as usize];
+                        println!("move.{} ${:0x},(a{})", size, source, reg);
+                        match size {
+                            OperationSize::Byte => self.mmu.write_byte(destination, source as u8),
+                            OperationSize::Word => unimplemented!(),
+                            OperationSize::Long => unimplemented!(),
+                        }
+                    },
+                    AddressingMode::AddressWithPostincrement(_reg) => unimplemented!(),
+                    AddressingMode::AddressWithPredecrement(_reg) => unimplemented!(),
+                    AddressingMode::AddressWithDisplacement(reg) => {
+                        //sign extend the displacement
+                        let displacement =
+                            (self.mmu.read_word(self.pc + pc_increment) as u32).sign_extend(16);
+                        pc_increment += 2;
+                        let destination = self.a[reg as usize] + displacement;
 
-                match size {
-                    OperationSize::Byte => self.mmu.write_byte(destination, source as u8),
-                    _ => unimplemented!(),
-                }
+                        println!("move.{} ${:0x},{}({})", size, source, displacement, reg);
+                        match size {
+                            OperationSize::Byte => self.mmu.write_byte(destination, source as u8),
+                            OperationSize::Word => unimplemented!(),
+                            OperationSize::Long => unimplemented!(),
+                        }
+                    }
+                    AddressingMode::AddressWithIndex(_reg) => unimplemented!(),
+                    AddressingMode::AbsoluteShort => unimplemented!(),
+                    AddressingMode::AbsoluteLong => unimplemented!(),
+                    _ => panic!("invalid addressing mode: {:0b} {:0b}",),
+                };
 
                 //Should be the same for:
                 //AND, ANDI, OR, EOR, EORI, MOVE, MOVEQ, EXT, NOT, TST
@@ -441,7 +459,6 @@ impl CPU {
                 self.ccr &= !ccr::NZVC;
                 self.ccr |= set & ccr::NZVC;
 
-                println!("move.{} ${:0x},${:0x}", size, source, destination);
                 self.pc += pc_increment
             }
             //BTST #<data>, <ea>
@@ -464,7 +481,10 @@ impl CPU {
                         let displacement = (self.mmu.read_word(self.pc + 4) as i32).sign_extend(16);
                         let address = self.pc as i32 + displacement + 4;
                         let bit_set = address.bit(bit_index as usize);
-                        println!("btst.b #${:04}, (PC, {:08x}) == {:08x}", bit_index, displacement, address);
+                        println!(
+                            "btst.b #${:04}, (PC, {:08x}) == {:08x}",
+                            bit_index, displacement, address
+                        );
                         if bit_set {
                             self.ccr |= ccr::Z
                         } else {
@@ -701,12 +721,12 @@ impl CPU {
                     AddressingMode::AbsoluteLong => {
                         let address = self.mmu.read_long(self.pc + 2);
                         self.a[an as usize] = address;
-                        println!("lea.l {:08x},{}", address, an);
+                        println!("lea.l {:08x},a{}", address, an);
                         self.pc += 6
                     }
                     AddressingMode::ProgramCounterWithDisplacement => {
-                        let displacement = (self.mmu.read_word(self.pc + 2) as u32).sign_extend(16);
-                        self.a[an as usize] = self.pc + 2 + displacement;
+                        let displacement = (self.mmu.read_word(self.pc + 2) as i32).sign_extend(16);
+                        self.a[an as usize] = (self.pc as i32 + 2 + displacement).try_into().unwrap();
                         println!("lea.l (PC,${:04x}), a{}", displacement, an);
                         self.pc += 4;
                     }
