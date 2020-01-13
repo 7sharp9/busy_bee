@@ -26,27 +26,13 @@ fn main() -> Result<(), io::Error> {
 
     //cpu.reset();
     cpu.reset();
-    cpu.step();
-    cpu.step();
-    cpu.step();
-    cpu.step();
-    cpu.step();
-    cpu.step();
-    cpu.step();
-    cpu.step();
-    cpu.step();
-    cpu.step();
-    cpu.step();
-    cpu.step();
-    cpu.step();
-    cpu.step();
-    cpu.step();
-    cpu.step();
-    cpu.step();
-    cpu.step();
-    cpu.step();
-    cpu.step();
+    for _ in 1..=24  {
+        cpu.step();
+    }
     println!("\r\n{:?}", cpu);
-    println!("0xffff8800 {0:08x} {0:08b}", cpu.mmu.read_byte(0xff8800));
+
+    cpu.step();
+
+    println!("\r\n{:?}", cpu);
     Ok(())
 }
