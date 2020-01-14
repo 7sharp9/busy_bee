@@ -30,6 +30,8 @@ const MAX_MEMORY: u32 = 0xffffff;
 const MAX_ROM: u32 = 0x3ffff;
 const MAX_CART: u32 = 0xFBFFFF;
 
+pub mod Video;
+
 #[derive(Clone)]
 pub struct Mmu {
     pub memory_configuration: u8,
@@ -37,6 +39,7 @@ pub struct Mmu {
     pub cart: Vec<u8>,
     pub memory: Vec<u8>,
     pub sound: Sound,
+    pub video: Video::Video
 }
 
 #[derive(Clone)]
@@ -169,10 +172,9 @@ impl Mmu {
             a if a < 8 => panic!("Memory error:${0:08x}, {0}, {0:024b}", destination),
             ROM_START..ROM_END => panic!("Attempt to write to Rom: ${:08x}", destination),
             CART_START..CART_END => panic!("Attempt to write to Cart: ${:08x}", destination),
-            VIDEO_DISPLAY_REGISTER_START..VIDEO_DISPLAY_REGISTER_END => unimplemented!(
-                "not implemented write to Video Display Register: {:0x}",
-                address
-            ),
+            VIDEO_DISPLAY_REGISTER_START..VIDEO_DISPLAY_REGISTER_END => {
+                self.video.write_word(destination, data)
+            },
             //YM2149 {
             //     ym2149IOMemory[(destination-ym2149Start)] = (data >> 8)
             //     ym2149IOMemory[(destination-ym2149Start + 1)] = data
@@ -201,5 +203,9 @@ impl Mmu {
             }
             a => long_from_slice(&self.memory, a),
         }
+    }
+
+    pub fn write_long(&self, address: u32, data: u32) {
+        todo!()
     }
 }
