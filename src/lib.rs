@@ -375,13 +375,21 @@ impl CPU {
                     AddressingMode::Address(_reg) => unimplemented!(),
                     AddressingMode::AddressWithPostincrement(reg) => {
                         let address = self.a[reg as usize];
-                        self.a[reg as usize] += match size {
-                            OperationSize::Byte => 1,
-                            OperationSize::Word => 2,
-                            OperationSize::Long => 4,
-                        };
-                        address
-                    }
+                        match size {
+                            OperationSize::Byte => {
+                            self.a[reg as usize] += 1;
+                            self.mmu.read_byte(address) as u32
+                            },
+                            OperationSize::Word => {
+                                self.a[reg as usize] += 2;
+                                self.mmu.read_word(address) as u32
+                            },
+                            OperationSize::Long => {
+                                self.a[reg as usize] += 4;
+                                self.mmu.read_long(address)
+                            },
+                        }
+                    },
                     AddressingMode::AddressWithPredecrement(_reg) => unimplemented!(),
                     AddressingMode::AddressWithDisplacement(_reg) => unimplemented!(),
                     AddressingMode::AddressWithIndex(_reg) => unimplemented!(),
@@ -426,7 +434,22 @@ impl CPU {
                             OperationSize::Long => unimplemented!(),
                         }
                     }
-                    AddressingMode::AddressWithPostincrement(_reg) => unimplemented!(),
+                    AddressingMode::AddressWithPostincrement(reg) => {
+                        match size {
+                            OperationSize::Byte => {
+                                self.mmu.write_byte(self.a[reg as usize], (source & 0xff) as u8);
+                                self.a[reg as usize] += 1
+                            },
+                            OperationSize::Word => {
+                                self.mmu.write_word(self.a[reg as usize],(source & 0xffff) as u16);
+                                self.a[reg as usize] += 2
+                            },
+                            OperationSize::Long => {
+                                self.mmu.write_long(self.a[reg as usize], source);
+                                self.a[reg as usize] += 4
+                            },
+                        };
+                    },
                     AddressingMode::AddressWithPredecrement(_reg) => unimplemented!(),
                     AddressingMode::AddressWithDisplacement(reg) => {
                         //sign extend the displacement
