@@ -527,7 +527,15 @@ impl CPU {
                         other, mode, reg
                     ),
                 }
-            }
+            },
+            //DBcc
+            (..) if opcode & 0b1111000011111000 == 0b0101000011001000 => {
+                let condition = opcode >> 8 & 0b1111;
+                let reg = opcode & 0b111;
+                println!("condition {:04b}, reg {:03b}", condition, reg);
+                todo!()
+
+            },
             //Bra, Bcc, Bsr
             //CC none
             (0b0110, condition, ..) => {
