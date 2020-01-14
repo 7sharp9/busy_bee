@@ -1,4 +1,4 @@
-use busy_bee::mmu::{Mmu, Sound};
+use busy_bee::mmu::{Mmu, Sound, Video::Video};
 use busy_bee::CPU;
 use std::fs;
 use std::io;
@@ -20,13 +20,14 @@ fn main() -> Result<(), io::Error> {
             cart: vec![0],
             memory: vec![0; 1048576],
             memory_configuration: 0b0101, //101 = 512/512
-            sound: Sound::new()
+            sound: Sound::new(),
+            video: Video::new()
         },
     };
 
     //cpu.reset();
     cpu.reset();
-    for _ in 1..=24  {
+    for _ in 1..=25  {
         cpu.step();
     }
     println!("\r\n{:?}", cpu);
