@@ -25,7 +25,7 @@ impl Video {
     }
     pub fn read_byte(&self, address: u32) -> u8 {
         match address {
-            0xffff8201 => self.video_base_high,
+            0xFFFF8201 => self.video_base_high,
             0xFFFF8203 => self.video_base_medium,
             0xFFFF8205 => self.video_address_counter_high & 0x3f,
             0xFFFF8207 => self.video_address_counter_medium,
@@ -34,7 +34,7 @@ impl Video {
             0xFFFF8240..0xFFFF8260 => {
                 self.palette_colour[ (address - 0xFF8240) as usize] as u8
             },
-            0xFFFF8260 => self.screen_resolution & 0x3,
+            0xFF8260 => self.screen_resolution & 0x3,
             _ => panic!("invalid video register")
         }
     }
@@ -43,12 +43,32 @@ impl Video {
         match address {
             0xFFFF8201 => self.video_base_high = data,
             0xFFFF8203 => self.video_base_medium = data,
-            0xFFFF8205 => self.video_address_counter_high = data,
-            0xFFFF8207 => self.video_address_counter_medium = data,
-            0xFFFF8209 => self.video_address_counter_low = data,
+            0xFFFF8205 => panic!("read only video_address_counter_high"),
+            0xFFFF8207 => panic!("read only video_address_counter_medium"),
+            0xFFFF8209 => panic!("read only video_address_counter_low"),
             0xFFFF820A => self.sync_mode = data,
             0xFFFF8240..0xFFFF8260 => self.palette_colour[ (address - 0xFFFF8240) as usize] = data,
             0xFFFF8260 => self.screen_resolution = data,
+            _ => panic!("invalid video register")
+        }
+    }
+
+    pub fn read_word(&self, address: u32) -> u16 {
+        match address {
+            0xFFFF8201 => (self.video_base_high << 8) as u16 | 0x00,
+            0xFFFF8203 => (self.video_base_medium<< 8) as u16 | 0x00,
+            0xFFFF8205 => (self.video_address_counter_high << 8) as u16 | 0x00,
+            0xFFFF8207 => (self.video_address_counter_medium << 8) as u16 | 0x00,
+            0xFFFF8209 => (self.video_address_counter_low << 8) as u16 | 0x00,
+            0xFFFF820A => (self.sync_mode << 2) as u16 | 0x00,
+            0xFFFF8240..0xFFFF8260 => {
+                let b1 = (self.read_byte(address) as u16) << 8;
+                let b2 = self.read_byte(address + 1) as u16;
+                let result = b1 | b2;
+                result
+
+            },
+            0xFFFF8260 => (self.screen_resolution << 8) as u16 | 0x00,
             _ => panic!("invalid video register")
         }
     }
