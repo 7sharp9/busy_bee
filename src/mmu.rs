@@ -138,7 +138,7 @@ impl Mmu {
             CART_START..CART_END => panic!("Attempt to write to Cart: ${:08x}", destination),
             PSG_REGISTER_SELECT => self.sound.select_register(data),
             PSG_WRITE => self.sound.write_data(data),
-            VIDEO_DISPLAY_REGISTER_START..VIDEO_DISPLAY_REGISTER_END => unimplemented!("write to Video Display Register: {:0x}", address),
+            VIDEO_DISPLAY_REGISTER_START..=VIDEO_DISPLAY_REGISTER_END => unimplemented!("write to Video Display Register: {:0x}", address),
             _ => self.memory[destination as usize] = data,
         }
     }
@@ -158,9 +158,8 @@ impl Mmu {
                 //TODO
                 0xffff
             }
-            VIDEO_DISPLAY_REGISTER_START..VIDEO_DISPLAY_REGISTER_END => {
-                unimplemented!("video read")
-                //word_from_slice(&self.video_display, address)
+            VIDEO_DISPLAY_REGISTER_START..=VIDEO_DISPLAY_REGISTER_END => {
+                self.video.read_word(address)
             }
             a => word_from_slice(&self.memory, a),
         }
