@@ -39,30 +39,30 @@ pub struct Mmu {
     pub cart: Vec<u8>,
     pub memory: Vec<u8>,
     pub sound: Sound,
-    pub video: Video::Video
+    pub video: Video::Video,
 }
 
 #[derive(Clone)]
 pub struct Sound {
     reg_select: u8,
-    registers: [u8; 16]
+    registers: [u8; 16],
 }
 
 impl Sound {
-    pub fn select_register(& mut self, reg: u8) {
+    pub fn select_register(&mut self, reg: u8) {
         self.reg_select = reg
     }
     pub fn read_data(&self) -> u8 {
         self.registers[self.reg_select as usize]
     }
-    pub fn write_data(&mut self, data:u8) {
+    pub fn write_data(&mut self, data: u8) {
         self.registers[self.reg_select as usize] = data
     }
 
     pub fn new() -> Sound {
         Sound {
             reg_select: 0,
-            registers: [0; 16]
+            registers: [0; 16],
         }
     }
     //0,1 pitch of analogue A 0-7 frequency lower 4 bits of 1 = step size
@@ -120,8 +120,8 @@ impl Mmu {
             CART_START..=CART_END => {
                 //TODO
                 0xff
-            },
-            PSG_READ => self.sound.read_data(), 
+            }
+            PSG_READ => self.sound.read_data(),
             VIDEO_DISPLAY_REGISTER_START..=VIDEO_DISPLAY_REGISTER_END => {
                 unimplemented!("video read");
                 //self.video_display[(address) as usize]
@@ -131,7 +131,7 @@ impl Mmu {
         }
     }
 
-    pub fn write_byte(& mut self, destination: u32, data: u8) {
+    pub fn write_byte(&mut self, destination: u32, data: u8) {
         let address = destination & 0xffffff; //clip to max mem
         match address {
             a if a < 8 => panic!("Memory error:${0:08x}, {0}, {0:024b}", destination),
@@ -139,7 +139,9 @@ impl Mmu {
             CART_START..CART_END => panic!("Attempt to write to Cart: ${:08x}", destination),
             PSG_REGISTER_SELECT => self.sound.select_register(data),
             PSG_WRITE => self.sound.write_data(data),
-            VIDEO_DISPLAY_REGISTER_START..=VIDEO_DISPLAY_REGISTER_END => unimplemented!("write to Video Display Register: {:0x}", address),
+            VIDEO_DISPLAY_REGISTER_START..=VIDEO_DISPLAY_REGISTER_END => {
+                self.video.write_byte(address, data)
+            }
             _ => self.memory[destination as usize] = data,
         }
     }
@@ -167,7 +169,7 @@ impl Mmu {
         }
     }
 
-    pub fn write_word(& mut self, address: u32, data: u16) {
+    pub fn write_word(&mut self, address: u32, data: u16) {
         let address = address & 0xffffff; //clip to max mem
         match address {
             a if a < 8 => panic!("Memory error:${0:08x}, {0}, {0:024b}", address),
@@ -175,7 +177,7 @@ impl Mmu {
             CART_START..CART_END => panic!("Attempt to write to Cart: ${:08x}", address),
             VIDEO_DISPLAY_REGISTER_START..VIDEO_DISPLAY_REGISTER_END => {
                 self.video.write_word(address, data)
-            },
+            }
             //YM2149 {
             //     ym2149IOMemory[(destination-ym2149Start)] = (data >> 8)
             //     ym2149IOMemory[(destination-ym2149Start + 1)] = data
