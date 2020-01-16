@@ -532,10 +532,29 @@ impl CPU {
             (..) if opcode & 0b1111000011111000 == 0b0101000011001000 => {
                 let condition = opcode >> 8 & 0b1111;
                 let reg = opcode & 0b111;
-                println!("condition {:04b}, reg {:03b}", condition, reg);
-                todo!()
+                let condition = Condition::from_u16(condition).unwrap();
+                let displacement = (self.mmu.read_word(self.pc + 2) as i32).sign_extend(16);
+                let condition_true = condition.is_true(self);
+                if condition_true {
+                    self.pc += 4
+                } else {
+                    let new_counter = self.d[reg as usize] as i32 - 1;
+                    self.d[reg as usize] =
+                        (self.d[reg as usize] & 0xffff0000) | new_counter as u32 & 0xffff;
 
-            },
+                    if new_counter == -1 {
+                        self.pc += 4
+                    } else {
+                        let new_pc = (self.pc as i32).wrapping_add(displacement).wrapping_add(2);
+                        self.pc = new_pc as u32
+                    }
+                }
+
+                println!(
+                    "db{} d{},${:08x} == ${:08x}",
+                    condition, reg, displacement, self.pc
+                );
+            }
             //Bra, Bcc, Bsr
             //CC none
             (0b0110, condition, ..) => {
