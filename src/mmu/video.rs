@@ -25,13 +25,13 @@ impl Video {
     }
     pub fn read_byte(&self, address: u32) -> u8 {
         match address {
-            0xFFFF8201 => self.video_base_high,
-            0xFFFF8203 => self.video_base_medium,
-            0xFFFF8205 => self.video_address_counter_high & 0x3f,
-            0xFFFF8207 => self.video_address_counter_medium,
-            0xFFFF8209 => self.video_address_counter_low & 0xfe,
-            0xFFFF820A => self.sync_mode & 0x3,
-            0xFFFF8240..0xFFFF8260 => {
+            0xFF8201 => self.video_base_high,
+            0xFF8203 => self.video_base_medium,
+            0xFF8205 => self.video_address_counter_high & 0x3f,
+            0xFF8207 => self.video_address_counter_medium,
+            0xFF8209 => self.video_address_counter_low & 0xfe,
+            0xFF820A => self.sync_mode & 0x3,
+            0xFF8240..0xFF8260 => {
                 self.palette_colour[ (address - 0xFF8240) as usize] as u8
             },
             0xFF8260 => self.screen_resolution & 0x3,
@@ -41,27 +41,27 @@ impl Video {
 
     pub fn write_byte(& mut self, address: u32, data: u8) {
         match address {
-            0xFFFF8201 => self.video_base_high = data,
-            0xFFFF8203 => self.video_base_medium = data,
-            0xFFFF8205 => panic!("read only video_address_counter_high"),
-            0xFFFF8207 => panic!("read only video_address_counter_medium"),
-            0xFFFF8209 => panic!("read only video_address_counter_low"),
-            0xFFFF820A => self.sync_mode = data,
-            0xFFFF8240..0xFFFF8260 => self.palette_colour[ (address - 0xFFFF8240) as usize] = data,
-            0xFFFF8260 => self.screen_resolution = data,
+            0xFF8201 => self.video_base_high = data,
+            0xFF8203 => self.video_base_medium = data,
+            0xFF8205 => panic!("read only video_address_counter_high"),
+            0xFF8207 => panic!("read only video_address_counter_medium"),
+            0xFF8209 => panic!("read only video_address_counter_low"),
+            0xFF820A => self.sync_mode = data,
+            0xFF8240..0xFF8260 => self.palette_colour[ (address - 0xFF8240) as usize] = data,
+            0xFF8260 => self.screen_resolution = data,
             _ => panic!("invalid video register")
         }
     }
 
     pub fn read_word(&self, address: u32) -> u16 {
         match address {
-            0xFFFF8201 => (self.video_base_high << 8) as u16 | 0x00,
-            0xFFFF8203 => (self.video_base_medium<< 8) as u16 | 0x00,
-            0xFFFF8205 => (self.video_address_counter_high << 8) as u16 | 0x00,
-            0xFFFF8207 => (self.video_address_counter_medium << 8) as u16 | 0x00,
-            0xFFFF8209 => (self.video_address_counter_low << 8) as u16 | 0x00,
-            0xFFFF820A => (self.sync_mode << 2) as u16 | 0x00,
-            0xFFFF8240..0xFFFF8260 => {
+            0xFF8201 => (self.video_base_high << 8) as u16 | 0x00,
+            0xFF8203 => (self.video_base_medium<< 8) as u16 | 0x00,
+            0xFF8205 => (self.video_address_counter_high << 8) as u16 | 0x00,
+            0xFF8207 => (self.video_address_counter_medium << 8) as u16 | 0x00,
+            0xFF8209 => (self.video_address_counter_low << 8) as u16 | 0x00,
+            0xFF820A => (self.sync_mode << 2) as u16 | 0x00,
+            0xFF8240..0xFF8260 => {
                 let b1 = (self.read_byte(address) as u16) << 8;
                 let b2 = self.read_byte(address + 1) as u16;
                 let result = b1 | b2;
@@ -75,18 +75,18 @@ impl Video {
 
     pub fn write_word(& mut self, address: u32, data: u16) {
         match address {
-            0xffff8201 => todo!(), // self.video_base_high,
-            0xFFFF8203 => todo!(), //self.video_base_medium,
-            0xFFFF8205 => todo!(), //self.video_address_counter_high & 0x3f,
-            0xFFFF8207 => todo!(), //self.video_address_counter_medium,
-            0xFFFF8209 => todo!(), //self.video_address_counter_low & 0xfe,
-            0xFFFF820A => todo!(), //self.sync_mode & 0x3,
-            0xFFFF8240..0xFFFF8260 => {
+            0xff8201 => todo!(), // self.video_base_high,
+            0xFF8203 => todo!(), //self.video_base_medium,
+            0xFF8205 => todo!(), //self.video_address_counter_high & 0x3f,
+            0xFF8207 => todo!(), //self.video_address_counter_medium,
+            0xFF8209 => todo!(), //self.video_address_counter_low & 0xfe,
+            0xFF820A => todo!(), //self.sync_mode & 0x3,
+            0xFF8240..0xFF8260 => {
                 self.write_byte(address, (data >> 8) as u8);
                 self.write_byte(address + 1, (data & 0xff) as u8)
 
             },
-            0xFFFF8260 => todo!(), //self.screen_resolution & 0x3,
+            0xFF8260 => todo!(), //self.screen_resolution & 0x3,
             _ => panic!("invalid video register")
         }
     }
