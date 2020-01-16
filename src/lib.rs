@@ -354,7 +354,7 @@ impl CPU {
         let op_2 = (opcode & 0x0F00) >> 8;
         let op_3 = (opcode & 0x00F0) >> 4;
         let op_4 = opcode & 0x000F;
-
+        print!("${:08x} : ", self.pc);
         match (op_1, op_2, op_3, op_4) {
             //(0b0000, 0b0000, _, _) => println!("ori to ccr"),
 
@@ -377,19 +377,19 @@ impl CPU {
                         let address = self.a[reg as usize];
                         match size {
                             OperationSize::Byte => {
-                            self.a[reg as usize] += 1;
-                            self.mmu.read_byte(address) as u32
-                            },
+                                self.a[reg as usize] += 1;
+                                self.mmu.read_byte(address) as u32
+                            }
                             OperationSize::Word => {
                                 self.a[reg as usize] += 2;
                                 self.mmu.read_word(address) as u32
-                            },
+                            }
                             OperationSize::Long => {
                                 self.a[reg as usize] += 4;
                                 self.mmu.read_long(address)
-                            },
+                            }
                         }
-                    },
+                    }
                     AddressingMode::AddressWithPredecrement(_reg) => unimplemented!(),
                     AddressingMode::AddressWithDisplacement(_reg) => unimplemented!(),
                     AddressingMode::AddressWithIndex(_reg) => unimplemented!(),
@@ -427,7 +427,7 @@ impl CPU {
                     }
                     AddressingMode::Address(reg) => {
                         let destination = self.a[reg as usize];
-                        println!("move.{} ${:0x},(a{})", size, source, reg);
+                        println!("move.{} ${},(a{})", size, source, reg);
                         match size {
                             OperationSize::Byte => self.mmu.write_byte(destination, source as u8),
                             OperationSize::Word => unimplemented!(),
@@ -435,21 +435,24 @@ impl CPU {
                         }
                     }
                     AddressingMode::AddressWithPostincrement(reg) => {
+                        println!("move.{} (a{})+,(a{})+", size, source_reg, destination_reg);
                         match size {
                             OperationSize::Byte => {
-                                self.mmu.write_byte(self.a[reg as usize], (source & 0xff) as u8);
+                                self.mmu
+                                    .write_byte(self.a[reg as usize], (source & 0xff) as u8);
                                 self.a[reg as usize] += 1
-                            },
+                            }
                             OperationSize::Word => {
-                                self.mmu.write_word(self.a[reg as usize],(source & 0xffff) as u16);
+                                self.mmu
+                                    .write_word(self.a[reg as usize], (source & 0xffff) as u16);
                                 self.a[reg as usize] += 2
-                            },
+                            }
                             OperationSize::Long => {
                                 self.mmu.write_long(self.a[reg as usize], source);
                                 self.a[reg as usize] += 4
-                            },
+                            }
                         };
-                    },
+                    }
                     AddressingMode::AddressWithPredecrement(_reg) => unimplemented!(),
                     AddressingMode::AddressWithDisplacement(reg) => {
                         //sign extend the displacement
@@ -527,7 +530,7 @@ impl CPU {
                         other, mode, reg
                     ),
                 }
-            },
+            }
             //DBcc
             (..) if opcode & 0b1111000011111000 == 0b0101000011001000 => {
                 let condition = opcode >> 8 & 0b1111;
