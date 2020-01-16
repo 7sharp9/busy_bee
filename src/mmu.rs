@@ -110,6 +110,7 @@ fn long_from_slice(buffer: &[u8], address: u32) -> u32 {
 
 impl Mmu {
     pub fn read_byte(&self, address: u32) -> u8 {
+        let address = address & 0xffffff; //clip to max mem
         match address {
             0..=7 => self.rom[address as usize],
             ROM_START..=ROM_END => {
@@ -144,6 +145,7 @@ impl Mmu {
     }
 
     pub fn read_word(&self, address: u32) -> u16 {
+        let address = address & 0xffffff; //clip to max mem
         match address {
             0..7 => word_from_slice(&self.rom, address),
             ROM_START..ROM_END => {
@@ -165,28 +167,29 @@ impl Mmu {
         }
     }
 
-    pub fn write_word(& mut self, destination: u32, data: u16) {
-        let address = destination & 0xffffff; //clip to max mem
+    pub fn write_word(& mut self, address: u32, data: u16) {
+        let address = address & 0xffffff; //clip to max mem
         match address {
-            a if a < 8 => panic!("Memory error:${0:08x}, {0}, {0:024b}", destination),
-            ROM_START..ROM_END => panic!("Attempt to write to Rom: ${:08x}", destination),
-            CART_START..CART_END => panic!("Attempt to write to Cart: ${:08x}", destination),
+            a if a < 8 => panic!("Memory error:${0:08x}, {0}, {0:024b}", address),
+            ROM_START..ROM_END => panic!("Attempt to write to Rom: ${:08x}", address),
+            CART_START..CART_END => panic!("Attempt to write to Cart: ${:08x}", address),
             VIDEO_DISPLAY_REGISTER_START..VIDEO_DISPLAY_REGISTER_END => {
-                self.video.write_word(destination, data)
+                self.video.write_word(address, data)
             },
             //YM2149 {
             //     ym2149IOMemory[(destination-ym2149Start)] = (data >> 8)
             //     ym2149IOMemory[(destination-ym2149Start + 1)] = data
             //}
             _ => {
-                self.memory[destination as usize] = (data >> 8) as u8;
-                self.memory[(destination + 1) as usize] = (data & 0xff) as u8
+                self.memory[address as usize] = (data >> 8) as u8;
+                self.memory[(address + 1) as usize] = (data & 0xff) as u8
             }
         }
     }
 
     pub fn read_long(&self, address: u32) -> u32 {
-        match address & 0xffffff {
+        let address = address & 0xffffff; //clip to max mem
+        match address {
             0..7 => long_from_slice(&self.rom, address),
             ROM_START..ROM_END => {
                 let address = address & 0x3ffff;
@@ -205,6 +208,7 @@ impl Mmu {
     }
 
     pub fn write_long(&self, address: u32, data: u32) {
+        let address = address & 0xffffff; //clip to max mem
         todo!()
     }
 }
