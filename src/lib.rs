@@ -167,7 +167,7 @@ impl fmt::Debug for Condition {
 
 use Condition::*;
 impl Condition {
-    pub fn condition_true(&self, cpu: &CPU) -> bool {
+    pub fn is_true(&self, cpu: &CPU) -> bool {
         match self {
             T => true,
             F => false,
@@ -585,7 +585,7 @@ impl CPU {
                     //Bcc
                     bcc => {
                         let condition = Condition::from_u16(bcc).unwrap();
-                        let condition_true = condition.condition_true(self);
+                        let condition_true = condition.is_true(self);
                         let displacement = opcode & 0xFF;
                         let displacement_size = OperationSize::from_u16(displacement);
                         //this is the same as Bra
