@@ -470,14 +470,34 @@ impl CPU {
                     }
                     AddressingMode::AddressWithIndex(_reg) => unimplemented!(),
                     AddressingMode::AbsoluteShort => unimplemented!(),
-                    AddressingMode::AbsoluteLong => unimplemented!(),
+                    AddressingMode::AbsoluteLong => {
+                        let destination_address = self.mmu.read_long(self.pc + pc_increment);
+                        println!("move.{} #{},${:08x}", size, source, destination_address);
+                        pc_increment += 4;
+                        match size {
+                            OperationSize::Byte => self
+                                .mmu
+                                .write_byte(destination_address, (source & 0xff) as u8),
+                            OperationSize::Word => self
+                                .mmu
+                                .write_word(destination_address, (source & 0xffff) as u16),
+                            OperationSize::Long => self.mmu.write_long(destination_address, source),
+                        }
+                    }
                     _ => panic!("invalid addressing mode: {:0b} {:0b}",),
                 };
 
                 //Should be the same for:
                 //AND, ANDI, OR, EOR, EORI, MOVE, MOVEQ, EXT, NOT, TST
                 let mut set = 0;
-                if source & 0xff == 0 {
+                if source
+                    & match size {
+                        OperationSize::Byte => 0xff,
+                        OperationSize::Word => 0xffff,
+                        OperationSize::Long => 0xffffffff,
+                    }
+                    == 0
+                {
                     set |= ccr::Z
                 } else if source
                     & match size {
@@ -548,7 +568,7 @@ impl CPU {
                     if new_counter == -1 {
                         self.pc += 4
                     } else {
-                        let new_pc = (self.pc as i32).wrapping_add(displacement).wrapping_add(2);
+                        let new_pc = (self.pc as i32) + displacement + 2;
                         self.pc = new_pc as u32
                     }
                 }
