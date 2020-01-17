@@ -369,36 +369,44 @@ impl CPU {
                 let source_reg = opcode & 0b111;
                 let mut pc_increment = 2;
 
-                let source = match AddressingMode::parse(source_mode as u8, source_reg as u8) {
+                let (source, source_format) = match AddressingMode::parse(source_mode as u8, source_reg as u8) {
                     AddressingMode::DataRegister(_reg) => unimplemented!(),
                     AddressingMode::AddressRegister(_reg) => unimplemented!(),
                     AddressingMode::Address(_reg) => unimplemented!(),
                     AddressingMode::AddressWithPostincrement(reg) => {
                         let address = self.a[reg as usize];
+                        let format = format!("(a{})+", reg);
                         match size {
                             OperationSize::Byte => {
                                 self.a[reg as usize] += 1;
-                                self.mmu.read_byte(address) as u32
+                                (self.mmu.read_byte(address) as u32, format)
                             }
                             OperationSize::Word => {
                                 self.a[reg as usize] += 2;
-                                self.mmu.read_word(address) as u32
+                                (self.mmu.read_word(address) as u32, format)
                             }
                             OperationSize::Long => {
                                 self.a[reg as usize] += 4;
-                                self.mmu.read_long(address)
+                                (self.mmu.read_long(address), format)
                             }
                         }
                     }
                     AddressingMode::AddressWithPredecrement(_reg) => unimplemented!(),
-                    AddressingMode::AddressWithDisplacement(_reg) => unimplemented!(),
+                    AddressingMode::AddressWithDisplacement(reg) => {
+                        let displacement = (self.mmu.read_word(self.pc + pc_increment) as i32).sign_extend(16);
+                        let format = format!("${:04x}(a{})", displacement, reg);
+                        pc_increment += 2;
+                        let address = (self.a[reg as usize] as i32) + displacement;
+                        let value = (self.mmu.read_byte(address as u32) & 0xff) as u32;
+                        (value, format)
+                    },
                     AddressingMode::AddressWithIndex(_reg) => unimplemented!(),
                     AddressingMode::ProgramCounterWithDisplacement => unimplemented!(),
                     AddressingMode::ProgramCounterWithIndex => unimplemented!(),
                     AddressingMode::AbsoluteShort => unimplemented!(),
                     AddressingMode::AbsoluteLong => unimplemented!(),
                     AddressingMode::Immediate => {
-                        match size {
+                        let imm = match size {
                             //only read lower byte information of the word
                             OperationSize::Byte => {
                                 pc_increment += 2;
@@ -412,13 +420,14 @@ impl CPU {
                                 pc_increment += 4;
                                 self.mmu.read_long(self.pc + 2)
                             }
-                        }
+                        };
+                        (imm, format!("#{}", imm))
                     }
                 };
 
                 match AddressingMode::parse(destination_mode as u8, destination_reg as u8) {
                     AddressingMode::DataRegister(reg) => {
-                        println!("move.{} ${:0x},d{}", size, source, reg);
+                        println!("move.{} {},d{}", size, source_format, reg);
                         match size {
                             OperationSize::Byte => self.d[reg as usize] |= source & 0xff,
                             OperationSize::Word => self.d[reg as usize] |= source & 0xffff,
@@ -427,7 +436,7 @@ impl CPU {
                     }
                     AddressingMode::Address(reg) => {
                         let destination = self.a[reg as usize];
-                        println!("move.{} ${},(a{})", size, source, reg);
+                        println!("move.{} {},(a{})", size, source_format, reg);
                         match size {
                             OperationSize::Byte => self.mmu.write_byte(destination, source as u8),
                             OperationSize::Word => unimplemented!(),
@@ -435,7 +444,7 @@ impl CPU {
                         }
                     }
                     AddressingMode::AddressWithPostincrement(reg) => {
-                        println!("move.{} (a{})+,(a{})+", size, source_reg, destination_reg);
+                        println!("move.{} {},(a{})+", size, source_format, destination_reg);
                         match size {
                             OperationSize::Byte => {
                                 self.mmu
@@ -461,7 +470,7 @@ impl CPU {
                         pc_increment += 2;
                         let destination = self.a[reg as usize] + displacement;
 
-                        println!("move.{} ${:0x},{}({})", size, source, displacement, reg);
+                        println!("move.{} {},{}({})", size, source_format, displacement, reg);
                         match size {
                             OperationSize::Byte => self.mmu.write_byte(destination, source as u8),
                             OperationSize::Word => unimplemented!(),
@@ -472,7 +481,7 @@ impl CPU {
                     AddressingMode::AbsoluteShort => unimplemented!(),
                     AddressingMode::AbsoluteLong => {
                         let destination_address = self.mmu.read_long(self.pc + pc_increment);
-                        println!("move.{} #{},${:08x}", size, source, destination_address);
+                        println!("move.{} {},${:08x}", size, source_format, destination_address);
                         pc_increment += 4;
                         match size {
                             OperationSize::Byte => self
