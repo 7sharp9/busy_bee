@@ -369,61 +369,63 @@ impl CPU {
                 let source_reg = opcode & 0b111;
                 let mut pc_increment = 2;
 
-                let (source, source_format) = match AddressingMode::parse(source_mode as u8, source_reg as u8) {
-                    AddressingMode::DataRegister(_reg) => unimplemented!(),
-                    AddressingMode::AddressRegister(_reg) => unimplemented!(),
-                    AddressingMode::Address(_reg) => unimplemented!(),
-                    AddressingMode::AddressWithPostincrement(reg) => {
-                        let address = self.a[reg as usize];
-                        let format = format!("(a{})+", reg);
-                        match size {
-                            OperationSize::Byte => {
-                                self.a[reg as usize] += 1;
-                                (self.mmu.read_byte(address) as u32, format)
-                            }
-                            OperationSize::Word => {
-                                self.a[reg as usize] += 2;
-                                (self.mmu.read_word(address) as u32, format)
-                            }
-                            OperationSize::Long => {
-                                self.a[reg as usize] += 4;
-                                (self.mmu.read_long(address), format)
+                let (source, source_format) =
+                    match AddressingMode::parse(source_mode as u8, source_reg as u8) {
+                        AddressingMode::DataRegister(_reg) => unimplemented!(),
+                        AddressingMode::AddressRegister(_reg) => unimplemented!(),
+                        AddressingMode::Address(_reg) => unimplemented!(),
+                        AddressingMode::AddressWithPostincrement(reg) => {
+                            let address = self.a[reg as usize];
+                            let format = format!("(a{})+", reg);
+                            match size {
+                                OperationSize::Byte => {
+                                    self.a[reg as usize] += 1;
+                                    (self.mmu.read_byte(address) as u32, format)
+                                }
+                                OperationSize::Word => {
+                                    self.a[reg as usize] += 2;
+                                    (self.mmu.read_word(address) as u32, format)
+                                }
+                                OperationSize::Long => {
+                                    self.a[reg as usize] += 4;
+                                    (self.mmu.read_long(address), format)
+                                }
                             }
                         }
-                    }
-                    AddressingMode::AddressWithPredecrement(_reg) => unimplemented!(),
-                    AddressingMode::AddressWithDisplacement(reg) => {
-                        let displacement = (self.mmu.read_word(self.pc + pc_increment) as i32).sign_extend(16);
-                        let format = format!("${:04x}(a{})", displacement, reg);
-                        pc_increment += 2;
-                        let address = (self.a[reg as usize] as i32) + displacement;
-                        let value = (self.mmu.read_byte(address as u32) & 0xff) as u32;
-                        (value, format)
-                    },
-                    AddressingMode::AddressWithIndex(_reg) => unimplemented!(),
-                    AddressingMode::ProgramCounterWithDisplacement => unimplemented!(),
-                    AddressingMode::ProgramCounterWithIndex => unimplemented!(),
-                    AddressingMode::AbsoluteShort => unimplemented!(),
-                    AddressingMode::AbsoluteLong => unimplemented!(),
-                    AddressingMode::Immediate => {
-                        let imm = match size {
-                            //only read lower byte information of the word
-                            OperationSize::Byte => {
-                                pc_increment += 2;
-                                (self.mmu.read_word(self.pc + 2) & 0xff) as u32
-                            }
-                            OperationSize::Word => {
-                                pc_increment += 2;
-                                self.mmu.read_word(self.pc + 2) as u32
-                            }
-                            OperationSize::Long => {
-                                pc_increment += 4;
-                                self.mmu.read_long(self.pc + 2)
-                            }
-                        };
-                        (imm, format!("#{}", imm))
-                    }
-                };
+                        AddressingMode::AddressWithPredecrement(_reg) => unimplemented!(),
+                        AddressingMode::AddressWithDisplacement(reg) => {
+                            let displacement =
+                                (self.mmu.read_word(self.pc + pc_increment) as i32).sign_extend(16);
+                            let format = format!("${:04x}(a{})", displacement, reg);
+                            pc_increment += 2;
+                            let address = (self.a[reg as usize] as i32) + displacement;
+                            let value = (self.mmu.read_byte(address as u32) & 0xff) as u32;
+                            (value, format)
+                        }
+                        AddressingMode::AddressWithIndex(_reg) => unimplemented!(),
+                        AddressingMode::ProgramCounterWithDisplacement => unimplemented!(),
+                        AddressingMode::ProgramCounterWithIndex => unimplemented!(),
+                        AddressingMode::AbsoluteShort => unimplemented!(),
+                        AddressingMode::AbsoluteLong => unimplemented!(),
+                        AddressingMode::Immediate => {
+                            let imm = match size {
+                                //only read lower byte information of the word
+                                OperationSize::Byte => {
+                                    pc_increment += 2;
+                                    (self.mmu.read_word(self.pc + 2) & 0xff) as u32
+                                }
+                                OperationSize::Word => {
+                                    pc_increment += 2;
+                                    self.mmu.read_word(self.pc + 2) as u32
+                                }
+                                OperationSize::Long => {
+                                    pc_increment += 4;
+                                    self.mmu.read_long(self.pc + 2)
+                                }
+                            };
+                            (imm, format!("#{}", imm))
+                        }
+                    };
 
                 match AddressingMode::parse(destination_mode as u8, destination_reg as u8) {
                     AddressingMode::DataRegister(reg) => {
@@ -481,7 +483,10 @@ impl CPU {
                     AddressingMode::AbsoluteShort => unimplemented!(),
                     AddressingMode::AbsoluteLong => {
                         let destination_address = self.mmu.read_long(self.pc + pc_increment);
-                        println!("move.{} {},${:08x}", size, source_format, destination_address);
+                        println!(
+                            "move.{} {},${:08x}",
+                            size, source_format, destination_address
+                        );
                         pc_increment += 4;
                         match size {
                             OperationSize::Byte => self
@@ -616,40 +621,40 @@ impl CPU {
                     0b0001 => unimplemented!("Bsr"),
                     //Bcc
                     bcc => {
+                        let mut pc_increment = 2;
                         let condition = Condition::from_u16(bcc).unwrap();
                         let condition_true = condition.is_true(self);
                         let displacement = opcode & 0xFF;
                         let displacement_size = OperationSize::from_u16(displacement);
                         //this is the same as Bra
-                        println!(
-                            "b{}.{} ${:06x} ({})",
-                            condition, displacement_size, self.pc, condition_true
-                        );
-                        match displacement_size {
+
+                        let displacement = match displacement_size {
                             OperationSize::Long => {
-                                if condition_true {
-                                    let displacement = self.mmu.read_long(self.pc + 2) + 2;
-                                    self.pc += displacement;
-                                } else {
-                                    self.pc += 6
-                                }
+                                let displacement = self.mmu.read_long(self.pc + pc_increment);
+                                pc_increment += 4;
+                                displacement
                             }
                             OperationSize::Word => {
-                                if condition_true {
-                                    let displacement = (self.mmu.read_word(self.pc + 2) as u32 + 2)
-                                        .sign_extend(16);
-                                    self.pc += displacement
-                                } else {
-                                    self.pc += 4
-                                }
+                                let displacement =
+                                    self.mmu.read_word(self.pc + pc_increment) as u32;
+                                let sign_extended = displacement.sign_extend(16);
+                                pc_increment += 2;
+                                sign_extended
                             }
-                            OperationSize::Byte => {
-                                if condition_true {
-                                    self.pc += (displacement as u32 + 2).sign_extend(24);
-                                } else {
-                                    self.pc += 2
-                                }
-                            }
+                            OperationSize::Byte => (displacement as u32).sign_extend(24),
+                        };
+                        println!(
+                            "b{}.{} #${:x} == {:08x} ({})",
+                            condition,
+                            displacement_size,
+                            displacement,
+                            (self.pc + displacement + 2),
+                            condition_true
+                        );
+                        if condition_true {
+                            self.pc += displacement + 2
+                        } else {
+                            self.pc += pc_increment
                         }
                     }
                 }
