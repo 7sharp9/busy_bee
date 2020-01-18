@@ -433,7 +433,7 @@ impl CPU {
                                     self.mmu.read_long(self.pc + 2)
                                 }
                             };
-                            (imm, format!("#{}", imm))
+                            (imm, format!("#&{:x}", imm))
                         }
                     };
 
