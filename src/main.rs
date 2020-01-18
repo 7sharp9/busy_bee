@@ -46,7 +46,7 @@ fn main() -> Result<(), io::Error> {
 
     //cpu.reset();
     cpu.reset();
-    for _ in 1..=68 {
+    for _ in 1..=69 {
         cpu.step();
     }
     println!("\r\n{:?}", cpu);
