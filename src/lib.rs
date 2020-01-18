@@ -348,6 +348,16 @@ impl CPU {
         }
     }
 
+    #[inline]
+    fn size_from_two_bits_zero_indexed(size: u16) -> Option<OperationSize> {
+        match size & 0b011 {
+            0b00 => Some(OperationSize::Byte),
+            0b01 => Some(OperationSize::Word),
+            0b10 => Some(OperationSize::Long),
+            _ => None,
+        }
+    }
+
     pub fn step(&mut self) {
         let opcode = self.mmu.read_word(self.pc);
         let op_1 = (opcode & 0xF000) >> 12;
@@ -658,6 +668,38 @@ impl CPU {
                         }
                     }
                 }
+            }
+            //CLR
+            //CCR: n|v|c = 0 z=1
+            (0b0100, 0b0010, ..) => {
+                let size = opcode >> 6 & 0b11;
+                let size = CPU::size_from_two_bits_zero_indexed(size).unwrap();
+                let mode = opcode >> 3 & 0b111;
+                let reg = opcode & 0b111;
+
+                match AddressingMode::parse(mode as u8, reg as u8) {
+                    AddressingMode::DataRegister(reg) => {
+                        match size {
+                            OperationSize::Byte => (self.d[reg as usize] &= 0xffffff00),
+                            OperationSize::Word => self.d[reg as usize] &= 0xffff0000,
+                            OperationSize::Long => self.d[reg as usize] = 0,
+                        }
+                        println!("clr.{} d{}", size, reg);
+                        self.pc += 2
+                    }
+                    AddressingMode::Address(reg) => todo!(),
+                    AddressingMode::AddressWithPostincrement(reg) => todo!(),
+                    AddressingMode::AddressWithPredecrement(reg) => todo!(),
+                    AddressingMode::AddressWithDisplacement(reg) => todo!(),
+                    AddressingMode::AddressWithIndex(reg) => todo!(),
+                    AddressingMode::AbsoluteShort => todo!(),
+                    AddressingMode::AbsoluteLong => todo!(),
+                    other => panic!("invalid addressing mode: {:?}", other),
+                }
+                //clear n|v|c
+                self.ccr &= !(ccr::N | ccr::V | ccr::C);
+                //set z
+                self.ccr |= ccr::Z;
             }
 
             //Move to SR
