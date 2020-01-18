@@ -142,7 +142,8 @@ impl Mmu {
             PSG_WRITE => self.sound.write_data(data),
             VIDEO_DISPLAY_REGISTER_START..=VIDEO_DISPLAY_REGISTER_END => {
                 self.video.write_byte(address, data)
-            }
+            },
+            MEMORY_CONFIGURATION => self.memory_configuration = data,
             _ => self.memory[destination as usize] = data,
         }
     }
