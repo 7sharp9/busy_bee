@@ -3,6 +3,7 @@ use std::io::Cursor;
 extern crate byteorder;
 use byteorder::{BigEndian, ByteOrder};
 
+const MEMORY_CONFIGURATION: u32 = 0xFF8001;
 const VIDEO_DISPLAY_REGISTER_START: u32 = 0xff8200;
 const VIDEO_DISPLAY_REGISTER_END: u32 = 0xFF8260;
 
@@ -126,7 +127,7 @@ impl Mmu {
                 unimplemented!("video read");
                 //self.video_display[(address) as usize]
             }
-            0xff8001 => self.memory_configuration,
+            MEMORY_CONFIGURATION => self.memory_configuration,
             a => self.memory[a as usize],
         }
     }
