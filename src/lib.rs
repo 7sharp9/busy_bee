@@ -363,7 +363,42 @@ impl CPU {
             //movea
             // cc NA
             (..) if opcode & 0b1100000111000000 == 0b0000001000000 && opcode >> 12 & 0b11 != 0 => {
-                todo!()
+                let mut pc_increment = 2;
+                let size = match opcode >> 12 & 0b11 {
+                    0b11 => OperationSize::Word,
+                    0b10 => OperationSize::Long,
+                    _ => panic!("Invalid size"),
+                };
+                let source_mode = opcode >> 3 & 0b111;
+                let source_reg = opcode & 0b111;
+                let (source, source_format): (u32, String) =
+                    match AddressingMode::parse(source_mode as u8, source_reg as u8) {
+                        AddressingMode::Immediate => {
+                            let (imm, f) = match size {
+                                OperationSize::Word => {
+                                    let imm = self.mmu.read_word(self.pc + pc_increment) as u32;
+                                    pc_increment += 2;
+                                    (imm, format!("#${:04x}", imm))
+                                }
+                                OperationSize::Long => {
+                                    let imm = self.mmu.read_long(self.pc + pc_increment);
+                                    pc_increment += 4;
+                                    (imm, format!("#${:08x}", imm))
+                                }
+                                _ => panic!("Invalid size"),
+                            };
+                            (imm, f)
+                        }
+                        _ => todo!(),
+                    };
+                let destination_reg = opcode >> 9 & 0b111;
+                match size {
+                    OperationSize::Word => self.a[destination_reg as usize] = source.sign_extend(16),
+                    OperationSize::Long => self.a[destination_reg as usize] = source,
+                    _ => panic!("Invalid size"),
+                }
+                println!("movea.{} {},a{}", size, source_format, destination_reg);
+                self.pc += pc_increment
             }
             //move <ea>, <ea>
             // CC NZVC V/C are cleared, NZ as per result
@@ -414,7 +449,7 @@ impl CPU {
                         AddressingMode::ProgramCounterWithIndex => unimplemented!(),
                         AddressingMode::AbsoluteShort => unimplemented!(),
                         AddressingMode::AbsoluteLong => unimplemented!(),
-                        AddressingMode::Immediate => {
+                        AddressingMode::Immediate => { 
                             let imm = match size {
                                 //only read lower byte information of the word
                                 OperationSize::Byte => {
@@ -438,8 +473,8 @@ impl CPU {
                     AddressingMode::AddressRegister(reg) => {
                         println!("move.{} {},a{}", size, source_format, reg);
                         match size {
-                            OperationSize::Byte => self.a[reg as usize] |= source & 0xff,
-                            OperationSize::Word => self.a[reg as usize] |= source & 0xffff,
+                            OperationSize::Byte => self.a[reg as usize] |= source & 0xff,//sign extend?
+                            OperationSize::Word => self.a[reg as usize] |= source & 0xffff,//sign extend?
                             OperationSize::Long => self.a[reg as usize] = source,
                         }
                     }
@@ -455,8 +490,8 @@ impl CPU {
                         let destination = self.a[reg as usize];
                         println!("move.{} {},(a{})", size, source_format, reg);
                         match size {
-                            OperationSize::Byte => self.mmu.write_byte(destination, source as u8),
-                            OperationSize::Word => unimplemented!(),
+                            OperationSize::Byte => self.mmu.write_byte(destination, source as u8),//sign extend?
+                            OperationSize::Word => unimplemented!(),//sign extend?
                             OperationSize::Long => unimplemented!(),
                         }
                     }
@@ -465,12 +500,12 @@ impl CPU {
                         match size {
                             OperationSize::Byte => {
                                 self.mmu
-                                    .write_byte(self.a[reg as usize], (source & 0xff) as u8);
+                                    .write_byte(self.a[reg as usize], (source & 0xff) as u8);//sign extend?
                                 self.a[reg as usize] += 1
                             }
                             OperationSize::Word => {
                                 self.mmu
-                                    .write_word(self.a[reg as usize], (source & 0xffff) as u16);
+                                    .write_word(self.a[reg as usize], (source & 0xffff) as u16);//sign extend?
                                 self.a[reg as usize] += 2
                             }
                             OperationSize::Long => {
@@ -489,8 +524,8 @@ impl CPU {
 
                         println!("move.{} {},{}({})", size, source_format, displacement, reg);
                         match size {
-                            OperationSize::Byte => self.mmu.write_byte(destination, source as u8),
-                            OperationSize::Word => unimplemented!(),
+                            OperationSize::Byte => self.mmu.write_byte(destination, source as u8),//sign extend?
+                            OperationSize::Word => unimplemented!(),//sign extend?
                             OperationSize::Long => unimplemented!(),
                         }
                     }
@@ -506,10 +541,10 @@ impl CPU {
                         match size {
                             OperationSize::Byte => self
                                 .mmu
-                                .write_byte(destination_address, (source & 0xff) as u8),
+                                .write_byte(destination_address, (source & 0xff) as u8),//sign extend?
                             OperationSize::Word => self
                                 .mmu
-                                .write_word(destination_address, (source & 0xffff) as u16),
+                                .write_word(destination_address, (source & 0xffff) as u16),//sign extend?
                             OperationSize::Long => self.mmu.write_long(destination_address, source),
                         }
                     }
