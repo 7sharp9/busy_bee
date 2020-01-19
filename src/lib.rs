@@ -330,14 +330,6 @@ impl CPU {
     }
 
     #[inline]
-    fn byte_word_or_long(op: u16) -> bool {
-        match op {
-            0b00 => false,
-            _ => true,
-        }
-    }
-
-    #[inline]
     fn size_from_two_bits_one_indexed(size: u16) -> Option<OperationSize> {
         match size & 0b011 {
             0b00 => None,
@@ -368,9 +360,16 @@ impl CPU {
         match (op_1, op_2, op_3, op_4) {
             //(0b0000, 0b0000, _, _) => println!("ori to ccr"),
 
+            //movea
+            // cc NA
+            (..) if opcode & 0b1100000111000000 == 0b0000001000000
+                && (opcode >> 12 & 0b11 != 0) =>
+            {
+                todo!()
+            }
             //move <ea>, <ea>
             // CC NZVC V/C are cleared, NZ as per result
-            (..) if op_1 & 0b1100 == 0 && CPU::byte_word_or_long(op_1) => {
+            (..) if opcode & 0b1100000000000000 == 0 && opcode >> 12 & 0b11 != 0 => {
                 let size = CPU::size_from_two_bits_one_indexed(op_1).expect("invalid size");
 
                 let destination_reg = opcode >> 9 & 0b111;
@@ -438,6 +437,14 @@ impl CPU {
                     };
 
                 match AddressingMode::parse(destination_mode as u8, destination_reg as u8) {
+                    AddressingMode::AddressRegister(reg) => {
+                        println!("move.{} {},a{}", size, source_format, reg);
+                        match size {
+                            OperationSize::Byte => self.a[reg as usize] |= source & 0xff,
+                            OperationSize::Word => self.a[reg as usize] |= source & 0xffff,
+                            OperationSize::Long => self.a[reg as usize] = source,
+                        }
+                    }
                     AddressingMode::DataRegister(reg) => {
                         println!("move.{} {},d{}", size, source_format, reg);
                         match size {
