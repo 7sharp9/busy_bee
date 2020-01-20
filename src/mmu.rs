@@ -142,9 +142,9 @@ impl Mmu {
             PSG_WRITE => self.sound.write_data(data),
             VIDEO_DISPLAY_REGISTER_START..=VIDEO_DISPLAY_REGISTER_END => {
                 self.video.write_byte(address, data)
-            },
+            }
             MEMORY_CONFIGURATION => self.memory_configuration = data,
-            _ => self.memory[destination as usize] = data,
+            _ => self.memory[address as usize] = data,
         }
     }
 
@@ -185,8 +185,12 @@ impl Mmu {
             //     ym2149IOMemory[(destination-ym2149Start + 1)] = data
             //}
             _ => {
-                self.memory[address as usize] = (data >> 8) as u8;
-                self.memory[(address + 1) as usize] = (data & 0xff) as u8
+                if address > self.memory.len() as u32 {
+                    println!("not writing to ${:08x} as its not in memory", address)
+                } else {
+                    self.memory[address as usize] = (data >> 8) as u8;
+                    self.memory[(address + 1) as usize] = (data & 0xff) as u8
+                }
             }
         }
     }
