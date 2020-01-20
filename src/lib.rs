@@ -959,6 +959,15 @@ impl CPU {
                     AddressingMode::AbsoluteLong => todo!(),
                     AddressingMode::Immediate => todo!(),
                 }
+            },
+            _ if opcode & 0b1111000100110000 == 0b1101000100000000 && opcode >> 6 & 0b11 != 0b11 => {
+                unimplemented!("addx")
+            }
+            _ if opcode & 0b1111000011000000 == 0b1101000011000000 => {
+                unimplemented!("adda")
+            }, 
+            _ if opcode & 0b1111000000000000 == 0b1101000000000000 && opcode >> 6 & 0b11 != 0b11 => {
+                unimplemented!("add")
             }
             _ => panic!("pc: {:08x} unknown {1:04x} {1:016b}", self.pc, opcode),
         }
