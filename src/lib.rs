@@ -352,17 +352,17 @@ impl CPU {
 
     pub fn step(&mut self) {
         let opcode = self.mmu.read_word(self.pc);
-        let op_1 = (opcode & 0xF000) >> 12;
-        let op_2 = (opcode & 0x0F00) >> 8;
-        let op_3 = (opcode & 0x00F0) >> 4;
-        let op_4 = opcode & 0x000F;
+        // let op_1 = (opcode & 0xF000) >> 12;
+        // let op_2 = (opcode & 0x0F00) >> 8;
+        // let op_3 = (opcode & 0x00F0) >> 4;
+        // let op_4 = opcode & 0x000F;
         print!("${:08x} : ", self.pc);
-        match (op_1, op_2, op_3, op_4) {
+        match opcode {
             //(0b0000, 0b0000, _, _) => println!("ori to ccr"),
 
             //movea
             // cc NA
-            (..) if opcode & 0b1100000111000000 == 0b0000001000000 && opcode >> 12 & 0b11 != 0 => {
+            _ if opcode & 0b1100000111000000 == 0b0000000001000000 && opcode >> 12 & 0b11 != 0 => {
                 let mut pc_increment = 2;
                 let size = match opcode >> 12 & 0b11 {
                     0b11 => OperationSize::Word,
@@ -393,7 +393,9 @@ impl CPU {
                     };
                 let destination_reg = opcode >> 9 & 0b111;
                 match size {
-                    OperationSize::Word => self.a[destination_reg as usize] = source.sign_extend(16),
+                    OperationSize::Word => {
+                        self.a[destination_reg as usize] = source.sign_extend(16)
+                    }
                     OperationSize::Long => self.a[destination_reg as usize] = source,
                     _ => panic!("Invalid size"),
                 }
@@ -402,8 +404,13 @@ impl CPU {
             }
             //move <ea>, <ea>
             // CC NZVC V/C are cleared, NZ as per result
-            (..) if opcode & 0b1100000000000000 == 0 && opcode >> 12 & 0b11 != 0 => {
-                let size = CPU::size_from_two_bits_one_indexed(op_1).expect("invalid size");
+            _ if opcode & 0b1100000000000000 == 0b0000000000000000 && opcode >> 12 & 0b11 != 0 => {
+                let size = match opcode >> 12 & 0b11 {
+                    0b01 => OperationSize::Byte,
+                    0b11 => OperationSize::Word,
+                    0b10 => OperationSize::Long,
+                    _ => panic!("Invalid"),
+                };
 
                 let destination_reg = opcode >> 9 & 0b111;
                 let destination_mode = opcode >> 6 & 0b111;
@@ -413,7 +420,14 @@ impl CPU {
 
                 let (source, source_format) =
                     match AddressingMode::parse(source_mode as u8, source_reg as u8) {
-                        AddressingMode::DataRegister(_reg) => unimplemented!(),
+                        AddressingMode::DataRegister(reg) => {
+                            let address = match size {
+                                OperationSize::Byte => self.d[reg as usize] & 0xFF,
+                                OperationSize::Word => self.d[reg as usize] & 0xFFFF,
+                                OperationSize::Long => self.d[reg as usize],
+                            };
+                            (address, format!("d{}", reg))
+                        }
                         AddressingMode::AddressRegister(_reg) => unimplemented!(),
                         AddressingMode::Address(_reg) => unimplemented!(),
                         AddressingMode::AddressWithPostincrement(reg) => {
@@ -449,7 +463,7 @@ impl CPU {
                         AddressingMode::ProgramCounterWithIndex => unimplemented!(),
                         AddressingMode::AbsoluteShort => unimplemented!(),
                         AddressingMode::AbsoluteLong => unimplemented!(),
-                        AddressingMode::Immediate => { 
+                        AddressingMode::Immediate => {
                             let imm = match size {
                                 //only read lower byte information of the word
                                 OperationSize::Byte => {
@@ -473,8 +487,8 @@ impl CPU {
                     AddressingMode::AddressRegister(reg) => {
                         println!("move.{} {},a{}", size, source_format, reg);
                         match size {
-                            OperationSize::Byte => self.a[reg as usize] |= source & 0xff,//sign extend?
-                            OperationSize::Word => self.a[reg as usize] |= source & 0xffff,//sign extend?
+                            OperationSize::Byte => self.a[reg as usize] |= source & 0xff, //sign extend?
+                            OperationSize::Word => self.a[reg as usize] |= source & 0xffff, //sign extend?
                             OperationSize::Long => self.a[reg as usize] = source,
                         }
                     }
@@ -490,8 +504,8 @@ impl CPU {
                         let destination = self.a[reg as usize];
                         println!("move.{} {},(a{})", size, source_format, reg);
                         match size {
-                            OperationSize::Byte => self.mmu.write_byte(destination, source as u8),//sign extend?
-                            OperationSize::Word => unimplemented!(),//sign extend?
+                            OperationSize::Byte => self.mmu.write_byte(destination, source as u8), //sign extend?
+                            OperationSize::Word => unimplemented!(), //sign extend?
                             OperationSize::Long => unimplemented!(),
                         }
                     }
@@ -500,12 +514,12 @@ impl CPU {
                         match size {
                             OperationSize::Byte => {
                                 self.mmu
-                                    .write_byte(self.a[reg as usize], (source & 0xff) as u8);//sign extend?
+                                    .write_byte(self.a[reg as usize], (source & 0xff) as u8); //sign extend?
                                 self.a[reg as usize] += 1
                             }
                             OperationSize::Word => {
                                 self.mmu
-                                    .write_word(self.a[reg as usize], (source & 0xffff) as u16);//sign extend?
+                                    .write_word(self.a[reg as usize], (source & 0xffff) as u16); //sign extend?
                                 self.a[reg as usize] += 2
                             }
                             OperationSize::Long => {
@@ -524,8 +538,8 @@ impl CPU {
 
                         println!("move.{} {},{}({})", size, source_format, displacement, reg);
                         match size {
-                            OperationSize::Byte => self.mmu.write_byte(destination, source as u8),//sign extend?
-                            OperationSize::Word => unimplemented!(),//sign extend?
+                            OperationSize::Byte => self.mmu.write_byte(destination, source as u8), //sign extend?
+                            OperationSize::Word => unimplemented!(), //sign extend?
                             OperationSize::Long => unimplemented!(),
                         }
                     }
@@ -541,10 +555,10 @@ impl CPU {
                         match size {
                             OperationSize::Byte => self
                                 .mmu
-                                .write_byte(destination_address, (source & 0xff) as u8),//sign extend?
+                                .write_byte(destination_address, (source & 0xff) as u8), //sign extend?
                             OperationSize::Word => self
                                 .mmu
-                                .write_word(destination_address, (source & 0xffff) as u16),//sign extend?
+                                .write_word(destination_address, (source & 0xffff) as u16), //sign extend?
                             OperationSize::Long => self.mmu.write_long(destination_address, source),
                         }
                     }
@@ -580,7 +594,7 @@ impl CPU {
             }
             //BTST #<data>, <ea>
             //CC Z is bit tested is zero
-            (0b0000, ..) if opcode & 0b0000000111000000 == 0b0000000100000000 => {
+            _ if opcode & 0b1111000111000000 == 0b0000000100000000 => {
                 let bit_register = (opcode >> 9) & 0b111;
                 let mode = (opcode >> 3) & 0b111;
                 let register = opcode & 0b111;
@@ -588,7 +602,7 @@ impl CPU {
             }
             //BTST Immediate #, <ea>
             //CC Z is bit tested is zero
-            (0b0000, 0b1000, ..) if opcode & 0b0000000011000000 == 0 => {
+            _ if opcode & 0b1111111111000000 == 0b0000100000000000 => {
                 let mode = (opcode >> 3) & 0b111;
                 let reg = opcode & 0b111;
                 let bit_index = self.mmu.read_word(self.pc + 2) & 0xff;
@@ -616,7 +630,7 @@ impl CPU {
                 }
             }
             //DBcc
-            (..) if opcode & 0b1111000011111000 == 0b0101000011001000 => {
+            _ if opcode & 0b1111000011111000 == 0b0101000011001000 => {
                 let condition = opcode >> 8 & 0b1111;
                 let reg = opcode & 0b111;
                 let condition = Condition::from_u16(condition).unwrap();
@@ -642,76 +656,74 @@ impl CPU {
                     condition, reg, displacement, self.pc
                 );
             }
-            //Bra, Bcc, Bsr
+            //Bra
             //CC none
-            (0b0110, condition, ..) => {
-                match condition {
-                    //Bra
-                    0b0000 => {
-                        match opcode & 0xFF {
-                            0xFF => {
-                                //long displacement
-                                self.pc += self.mmu.read_long(self.pc + 2) + 2;
-                                println!("bra.l ${:06x}", self.pc)
-                            }
-                            0x00 => {
-                                //word displacement, sign extended
-                                self.pc +=
-                                    (self.mmu.read_word(self.pc + 2) as u32 + 2).sign_extend(16);
-                                println!("bra.w ${:06x}", self.pc)
-                            }
-                            byte => {
-                                //byte displacement, sign extend
-                                self.pc += ((byte as u32) + 2).sign_extend(24);
-                                println!("bra.s ${:06x}", self.pc)
-                            }
-                        }
+            _ if opcode & 0b1111111100000000 == 0b0110000000000000 => {
+                match opcode & 0xFF {
+                    0xFF => {
+                        //long displacement
+                        self.pc += self.mmu.read_long(self.pc + 2) + 2;
+                        println!("bra.l ${:06x}", self.pc)
                     }
-                    //Bsr
-                    0b0001 => unimplemented!("Bsr"),
-                    //Bcc
-                    bcc => {
-                        let mut pc_increment = 2;
-                        let condition = Condition::from_u16(bcc).unwrap();
-                        let condition_true = condition.is_true(self);
-                        let displacement = opcode & 0xFF;
-                        let displacement_size = OperationSize::from_u16(displacement);
-                        //this is the same as Bra
-
-                        let displacement = match displacement_size {
-                            OperationSize::Long => {
-                                let displacement = self.mmu.read_long(self.pc + pc_increment);
-                                pc_increment += 4;
-                                displacement
-                            }
-                            OperationSize::Word => {
-                                let displacement =
-                                    self.mmu.read_word(self.pc + pc_increment) as u32;
-                                let sign_extended = displacement.sign_extend(16);
-                                pc_increment += 2;
-                                sign_extended
-                            }
-                            OperationSize::Byte => (displacement as u32).sign_extend(24),
-                        };
-                        println!(
-                            "b{}.{} #${:x} == {:08x} ({})",
-                            condition,
-                            displacement_size,
-                            displacement,
-                            (self.pc + displacement + 2),
-                            condition_true
-                        );
-                        if condition_true {
-                            self.pc += displacement + 2
-                        } else {
-                            self.pc += pc_increment
-                        }
+                    0x00 => {
+                        //word displacement, sign extended
+                        self.pc += (self.mmu.read_word(self.pc + 2) as u32 + 2).sign_extend(16);
+                        println!("bra.w ${:06x}", self.pc)
+                    }
+                    byte => {
+                        //byte displacement, sign extend
+                        self.pc += ((byte as u32) + 2).sign_extend(24);
+                        println!("bra.s ${:06x}", self.pc)
                     }
                 }
             }
+            //Bsr
+            //CC none
+            _ if opcode & 0b1111111100000000 == 0b0110000100000000 => unimplemented!("Bsr"),
+
+            //Bcc
+            //CC none
+            _ if opcode & 0b1111000000000000 == 0b0110000000000000 => {
+                let bcc = opcode >> 8 & 0b1111;
+                let mut pc_increment = 2;
+                let condition = Condition::from_u16(bcc).unwrap();
+                let condition_true = condition.is_true(self);
+                let displacement = opcode & 0xFF;
+                let displacement_size = OperationSize::from_u16(displacement);
+                //this is the same as Bra
+
+                let displacement = match displacement_size {
+                    OperationSize::Long => {
+                        let displacement = self.mmu.read_long(self.pc + pc_increment);
+                        pc_increment += 4;
+                        displacement
+                    }
+                    OperationSize::Word => {
+                        let displacement = self.mmu.read_word(self.pc + pc_increment) as u32;
+                        let sign_extended = displacement.sign_extend(16);
+                        pc_increment += 2;
+                        sign_extended
+                    }
+                    OperationSize::Byte => (displacement as u32).sign_extend(24),
+                };
+                println!(
+                    "b{}.{} #${:x} == {:08x} ({})",
+                    condition,
+                    displacement_size,
+                    displacement,
+                    (self.pc + displacement + 2),
+                    condition_true
+                );
+                if condition_true {
+                    self.pc += displacement + 2
+                } else {
+                    self.pc += pc_increment
+                }
+            }
+
             //CLR
             //CCR: n|v|c = 0 z=1
-            (0b0100, 0b0010, ..) => {
+            _ if opcode & 0b1111111100000000 == 0b0100001000000000 => {
                 let size = opcode >> 6 & 0b11;
                 let size = CPU::size_from_two_bits_zero_indexed(size).unwrap();
                 let mode = opcode >> 3 & 0b111;
@@ -744,7 +756,7 @@ impl CPU {
 
             //Move to SR
             //All CC bits affected as this is moving a word to CCR
-            (0b0100, 0b0110, part, _) if part & 0b1100 == 0b1100 => {
+            _ if opcode & 0b1111111111000000 == 0b0100011011000000 => {
                 let mode = (opcode & 0b0000000000111000) >> 3;
                 let reg = opcode & 0b0000000000000111;
                 match AddressingMode::parse(mode as u8, reg as u8) {
@@ -759,7 +771,7 @@ impl CPU {
             }
             //reset
             //CC none
-            (0b0100, 0b1110, 0b0111, 0b0000) => {
+            _ if opcode & 0b1111111111111111 == 0b0100111001110000 => {
                 //124 clock cycles
                 self.pc += 2;
                 println!("reset")
@@ -767,7 +779,7 @@ impl CPU {
 
             //jmp <ea>
             //CC none
-            (..) if opcode & 0b1111111111000000 == 0b0100111011000000 => {
+            _ if opcode & 0b1111111111000000 == 0b0100111011000000 => {
                 let mode = (opcode & 0b0000000000111000) >> 3;
                 let reg = opcode & 0b0000000000000111;
                 match AddressingMode::parse(mode as u8, reg as u8) {
@@ -788,7 +800,7 @@ impl CPU {
             //cmpi #<data>, <ea>
             //CC NZVC
             //Destination - Immediate Data
-            (0b0000, 0b1100, ..) => {
+            _ if opcode & 0b1111111100000000 == 0b0000110000000000 => {
                 let size = (opcode & 0b0000000011000000) >> 6;
                 let mode = (opcode & 0b0000000000111000) >> 3;
                 let reg = opcode & 0b0000000000000111;
@@ -884,7 +896,7 @@ impl CPU {
             }
             //lea
             //CC none
-            (..) if opcode & 0b1111000111000000 == 0b0100000111000000 => {
+            _ if opcode & 0b1111000111000000 == 0b0100000111000000 => {
                 let an = (opcode >> 9) & 0b111;
                 let mode = (opcode >> 3) & 0b111;
                 let reg = opcode & 0b111;
@@ -893,7 +905,7 @@ impl CPU {
                     AddressingMode::Address(_reg) => todo!(),
                     AddressingMode::AddressWithDisplacement(_reg) => todo!(),
                     AddressingMode::AddressWithIndex(_reg) => todo!(),
-                    AddressingMode::AbsoluteShort => todo!(),
+                    AddressingMode::AbsoluteShort => todo!(), //no sign extension for lea?  check!
                     AddressingMode::AbsoluteLong => {
                         let address = self.mmu.read_long(self.pc + 2);
                         self.a[an as usize] = address;
@@ -913,7 +925,7 @@ impl CPU {
             }
             //suba
             //CC none
-            (0b1001, ..) if opcode & 0b000000011000000 == 0b0000000011000000 => {
+            _ if opcode & 0b1111000011000000 == 0b1001000011000000  => {
                 let register = opcode >> 9 & 0b111;
                 let long_mode = opcode.bit(9);
                 let mode = opcode >> 3 & 0b111;
@@ -948,10 +960,7 @@ impl CPU {
                     AddressingMode::Immediate => todo!(),
                 }
             }
-            _ => panic!(
-                "unknown {:04b} {:04b} {:04b} {:04b} {:04x}",
-                op_1, op_2, op_3, op_4, opcode
-            ),
+            _ => panic!("pc: {:08x} unknown {1:04x} {1:016b}", self.pc, opcode),
         }
     }
 }
