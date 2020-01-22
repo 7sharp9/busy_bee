@@ -15,12 +15,7 @@ use quark::Signs;
 
 pub mod mmu;
 
-macro_rules! n_flag {
-    ($e:ident) => {
-        $e.ccr
-    };
-}
-
+#[derive(Debug)]
 pub enum TraceMode {
     NoTrace,
     TraceOnAny,
@@ -28,16 +23,24 @@ pub enum TraceMode {
     Undefined,
 }
 
+#[derive(Debug)]
 pub enum ActiveStack {
     Usp,
     Isp,
     Msp,
 }
 
+#[derive(Debug)]
 pub enum OperationSize {
     Byte,
     Word,
     Long,
+}
+
+#[derive(Debug)]
+pub enum Destination {
+    EA,
+    Dn,
 }
 
 #[derive(Debug)]
@@ -171,20 +174,20 @@ impl Condition {
         match self {
             T => true,
             F => false,
-            HI => !cpu.c() & !cpu.z(),
-            LS => cpu.c() | cpu.z(),
-            CC => !cpu.c(),
-            CS => cpu.c(),
-            NE => !cpu.z(),
-            EQ => cpu.z(),
-            VC => !cpu.v(),
-            VS => cpu.v(),
-            PL => !cpu.n(),
-            MI => cpu.n(),
-            GE => (cpu.n() & cpu.v()) | (!cpu.n() & !cpu.v()),
-            LT => (cpu.n() & !cpu.v()) | (!cpu.n() & cpu.v()),
-            GT => (cpu.n() & cpu.v()) | (!cpu.n() & !cpu.v()) & !cpu.z(),
-            LE => cpu.z() | (cpu.n() & !cpu.v()) | (!cpu.n() & cpu.v()),
+            HI => !cpu.c_flag & !cpu.z_flag,
+            LS => cpu.c_flag | cpu.z_flag,
+            CC => !cpu.c_flag,
+            CS => cpu.c_flag,
+            NE => !cpu.z_flag,
+            EQ => cpu.z_flag,
+            VC => !cpu.v_flag,
+            VS => cpu.v_flag,
+            PL => !cpu.n_flag,
+            MI => cpu.n_flag,
+            GE => (cpu.n_flag & cpu.v_flag) | (!cpu.n_flag & !cpu.v_flag),
+            LT => (cpu.n_flag & !cpu.v_flag) | (!cpu.n_flag & cpu.v_flag),
+            GT => (cpu.n_flag & cpu.v_flag) | (!cpu.n_flag & !cpu.v_flag) & !cpu.z_flag,
+            LE => cpu.z_flag | (cpu.n_flag & !cpu.v_flag) | (!cpu.n_flag & cpu.v_flag),
         }
     }
 }
@@ -194,7 +197,22 @@ pub struct CPU {
     pub d: [u32; 8],
     pub a: [u32; 8],
     pub pc: u32,
-    pub ccr: u16,
+    //pub ccr: u16,
+
+    
+    pub t1_flag:bool,
+    pub t0_flag: bool,
+    pub s_flag:bool,
+    pub m_flag: bool,
+
+    pub interrupt_mask: u8,
+
+    pub x_flag: bool,
+    pub n_flag: bool,
+    pub z_flag: bool,
+    pub v_flag: bool,
+    pub c_flag: bool,
+    
     pub mmu: mmu::Mmu,
 }
 
@@ -235,16 +253,17 @@ impl fmt::Debug for CPU {
         writeln!(f, "USP   {:08x}   ISP   {:08x}", self.a[7], self.a[7])?;
         writeln!(
             f,
-            "T={:02b} S={} M={} X={} N={} Z={} V={} C={} IMASK={:0x} STP={}",
-            (self.ccr >> 14),
-            self.s() as u32,
-            self.m() as u32,
-            self.x() as u32,
-            self.n() as u32,
-            self.z() as u32,
-            self.v() as u32,
-            self.c() as u32,
-            self.interrupt_mask(),
+            "T1={} T0={} S={} M={} X={} N={} Z={} V={} C={} IMASK={:0x} STP={}",
+            self.t1_flag as u32,
+            self.t0_flag as u32,
+            self.s_flag as u32,
+            self.m_flag as u32,
+            self.x_flag as u32,
+            self.n_flag as u32,
+            self.z_flag as u32,
+            self.v_flag as u32,
+            self.c_flag as u32,
+            self.interrupt_mask,
             0
         )?;
         writeln!(f, "PC: {:08x}", self.pc)
@@ -283,40 +302,9 @@ pub mod ccr {
 
 use ccr::*;
 impl CPU {
-    pub fn c(&self) -> bool {
-        !self.ccr & C == 0
-    }
-
-    pub fn v(&self) -> bool {
-        !self.ccr & V == 0
-    }
-    pub fn z(&self) -> bool {
-        !self.ccr & Z == 0
-    }
-    pub fn n(&self) -> bool {
-        !self.ccr & N == 0
-    }
-    pub fn x(&self) -> bool {
-        !self.ccr & X == 0
-    }
-    pub fn interrupt_mask(&self) -> u16 {
-        self.ccr & I
-    }
-    pub fn m(&self) -> bool {
-        !self.ccr & M == 0
-    }
-    pub fn s(&self) -> bool {
-        !self.ccr & S == 0
-    }
-    pub fn t0(&self) -> bool {
-        !self.ccr & T0 == 0
-    }
-    pub fn t1(&self) -> bool {
-        !self.ccr & T1 == 0
-    }
 
     pub fn trace_mode(&self) -> TraceMode {
-        match (self.t0(), self.t1()) {
+        match (self.t1_flag, self.t0_flag) {
             (false, false) => NoTrace,
             (true, false) => TraceOnAny,
             (false, true) => TraceOnFlow,
@@ -349,6 +337,89 @@ impl CPU {
             _ => None,
         }
     }
+
+    fn get_dreg8(&self, reg: u8) -> u8 {
+        (self.d[(reg & 7) as usize] & 0xff) as u8
+    }
+
+    fn get_dreg16(&self, reg: u8) -> u16 {
+        (self.d[(reg & 7) as usize] & 0xffff) as u16
+    }
+
+    fn get_dreg32(&self, reg: u8) -> u32 {
+        (self.d[(reg & 7) as usize])
+    }
+
+    fn get_areg16(&self, reg: u8) -> u16 {
+        (self.a[(reg & 7) as usize] & 0xffff) as u16
+    }
+
+    fn get_areg32(&self, reg: u8) -> u32 {
+        (self.a[(reg & 7) as usize])
+    }
+
+    fn set_dreg8(&mut self, reg: u8, val: u8) {
+        let reg = reg & 7;
+        self.d[reg as usize] = (self.d[reg as usize] & 0xffffff00) | (val as u32 & 0x000000ff)
+    }
+
+    fn set_dreg16(&mut self, reg: u8, val: u16) {
+        let reg = reg & 7;
+        self.d[reg as usize] = (self.d[reg as usize] & 0xffff0000) | (val as u32 & 0x0000ffff)
+    }
+
+    fn set_dreg32(&mut self, reg: u8, val: u32) {
+        self.d[(reg & 7) as usize] = val
+    }
+
+    fn set_areg16(&mut self, reg: u8, val: u16) {
+        let reg = reg & 7;
+        self.a[reg as usize] = (val as u32 & 0xffff).sign_extend(16);
+    }
+
+    fn set_areg32(&mut self, reg: u8, val: u32) {
+        let reg = reg & 7;
+        self.a[reg as usize] = val
+    }
+
+    // fn set_cc(&mut self, mask: u16, val: bool) {
+    //     if val {
+    //         self.ccr |= mask
+    //     } else {
+    //         self.ccr &= !mask
+    //     }
+    // }
+
+    // fn set_cc_flags_for_add(&mut self, d: u32, s1: u32, s2: u32) {
+    //     let mut set = 0;
+    //     let d = d & 1 == 1;
+    //     let s1 = s1 & 1 == 1;
+    //     let s2 = s2 & 1 == 1;
+    //     if d {
+    //         set |= ccr::N;
+    //         if s1 && s2 {
+    //             set |= ccr::C | ccr::X
+    //         }
+    //         if !(s1 || s2) {
+    //             set |= ccr::V
+    //         }
+    //     } else {
+    //         if s1 || s2 {
+    //             set |= ccr::C | ccr::X
+    //         }
+
+    //         if s1 && s2 {
+    //             set |= ccr::V
+    //         }
+    //     }
+    //     self.ccr &= !(ccr::X | ccr::N | ccr::V | ccr::C);
+    //     self.ccr |= set
+    // }
+
+    // fn set_cc_flags_for_add_16(&mut self, result: u16, s1: u16, s2: u16) {
+    //     self.set_cc(ccr::Z, result & 0xffff == 0);
+    //     self.set_cc_flags_for_add((result >> 15) as u32, (s1 >> 15) as u32, (s2 >> 15) as u32)
+    // }
 
     pub fn step(&mut self) {
         let opcode = self.mmu.read_word(self.pc);
@@ -616,11 +687,7 @@ impl CPU {
                             "btst.b #${:04}, (PC, {:08x}) == {:08x}",
                             bit_index, displacement, address
                         );
-                        if bit_set {
-                            self.ccr |= ccr::Z
-                        } else {
-                            self.ccr &= !ccr::Z
-                        }
+                        self.z_flag = bit_set;
                         self.pc += 6
                     }
                     other => panic!(
@@ -762,6 +829,8 @@ impl CPU {
                 match AddressingMode::parse(mode as u8, reg as u8) {
                     AddressingMode::Immediate => {
                         let imm = self.mmu.read_word(self.pc + 2);
+                        self.t1_flag = imm.bit_set(0);
+
                         self.ccr = imm;
                         self.pc += 4;
                         println!("move #{:0x},sr", imm)
@@ -925,7 +994,7 @@ impl CPU {
             }
             //suba
             //CC none
-            _ if opcode & 0b1111000011000000 == 0b1001000011000000  => {
+            _ if opcode & 0b1111000011000000 == 0b1001000011000000 => {
                 let register = opcode >> 9 & 0b111;
                 let long_mode = opcode.bit(9);
                 let mode = opcode >> 3 & 0b111;
@@ -959,15 +1028,80 @@ impl CPU {
                     AddressingMode::AbsoluteLong => todo!(),
                     AddressingMode::Immediate => todo!(),
                 }
-            },
-            _ if opcode & 0b1111000100110000 == 0b1101000100000000 && opcode >> 6 & 0b11 != 0b11 => {
+            }
+            //addx
+            _ if opcode & 0b1111000100110000 == 0b1101000100000000
+                && opcode >> 6 & 0b11 != 0b11 =>
+            {
                 unimplemented!("addx")
             }
-            _ if opcode & 0b1111000011000000 == 0b1101000011000000 => {
-                unimplemented!("adda")
-            }, 
-            _ if opcode & 0b1111000000000000 == 0b1101000000000000 && opcode >> 6 & 0b11 != 0b11 => {
-                unimplemented!("add")
+            //adda
+            _ if opcode & 0b1111000011000000 == 0b1101000011000000 => unimplemented!("adda"),
+            //add
+            _ if opcode & 0b1111000000000000 == 0b1101000000000000
+                && opcode >> 6 & 0b11 != 0b11 =>
+            {
+                let mut pc_increment = 2;
+                let dn = (opcode >> 9 & 0b111) as u8;
+                let ea_mode = (opcode >> 3 & 0b111) as u8;
+                let ea_reg = (opcode & 0b111) as u8;
+
+                let (size, operation_mode) = match opcode >> 6 & 0b111 {
+                    0b000 => (OperationSize::Byte, Destination::Dn), //byte: <ea> + Dn -> Dn
+                    0b001 => (OperationSize::Word, Destination::Dn), //word: <ea> + Dn -> Dn
+                    0b010 => (OperationSize::Long, Destination::Dn), //long: <ea> + Dn -> Dn
+
+                    0b100 => (OperationSize::Byte, Destination::EA), //byte: Dn + <ea> -> <ea>
+                    0b101 => (OperationSize::Word, Destination::EA), //word: Dn + <ea> -> <ea>
+                    0b110 => (OperationSize::Long, Destination::EA), //long: Dn + <ea> -> <ea>
+                    _ => panic!("Invalid operation mode"),
+                };
+                match (AddressingMode::parse(ea_mode, ea_reg), operation_mode) {
+                    (AddressingMode::DataRegister(_reg), Destination::Dn) => todo!(),
+                    (AddressingMode::AddressRegister(_reg), Destination::Dn) => todo!(),
+                    (AddressingMode::Address(_reg), _destination) => todo!(),
+                    (AddressingMode::AddressWithPostincrement(_reg), _) => todo!(),
+                    (AddressingMode::AddressWithPredecrement(_reg), _) => todo!(),
+                    (AddressingMode::AddressWithDisplacement(_reg), _) => todo!(),
+                    (AddressingMode::AddressWithIndex(_reg), _) => todo!(),
+                    (AddressingMode::ProgramCounterWithDisplacement, Destination::Dn) => todo!(),
+                    (AddressingMode::ProgramCounterWithIndex, Destination::Dn) => todo!(),
+                    (AddressingMode::AbsoluteShort, _) => todo!(),
+                    (AddressingMode::AbsoluteLong, _) => todo!(),
+                    (AddressingMode::Immediate, Destination::Dn) => {
+                        //sign extension not needed as immediate can only be the source, which means Dn is always the destination
+                        match size {
+                            OperationSize::Byte => {
+                                let source = self.mmu.read_word(self.pc + pc_increment) & 0xff;
+                                pc_increment += 2;
+                                todo!()
+                            }
+                            OperationSize::Word => {
+                                let source = self.mmu.read_word(self.pc + pc_increment);
+                                pc_increment += 2;
+                                let destination = self.get_dreg16(dn);
+                                let result = destination + source;
+                                self.set_dreg16(dn, result);
+                                self.set_cc_flags_for_add_16(source, destination, result);
+                                println!("add.{} #${:04x},d{}", size, source, dn)
+                            }
+                            OperationSize::Long => {
+                                self.mmu.read_long(self.pc + pc_increment);
+                                todo!()
+                            }
+                        };
+                        
+                        self.pc += pc_increment
+                    }
+
+                    //These all panic as only memory alterable addressing modes can be used if
+                    //the destination operand is the <ea>
+                    (AddressingMode::DataRegister(_reg), Destination::EA) => panic!(),
+                    (AddressingMode::AddressRegister(_reg), Destination::EA) => panic!(),
+                    (AddressingMode::ProgramCounterWithDisplacement, Destination::EA) => panic!(),
+                    (AddressingMode::ProgramCounterWithIndex, Destination::EA) => panic!(),
+                    (AddressingMode::Immediate, Destination::EA) => panic!(),
+                }
             }
             _ => panic!("pc: {:08x} unknown {1:04x} {1:016b}", self.pc, opcode),
         }
