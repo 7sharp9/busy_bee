@@ -701,17 +701,14 @@ impl CPU {
             _ if opcode & 0b1111111111000000 == 0b0000100000000000 => {
                 let mode = (opcode >> 3) & 0b111;
                 let reg = opcode & 0b111;
-                let bit_index = self.mmu.read_word(self.pc + 2) & 0xff;
+                let test_bit = self.mmu.read_word(self.pc + 2) & 0xff;
                 match AddressingMode::parse(mode as u8, reg as u8) {
                     AddressingMode::ProgramCounterWithDisplacement => {
-                        //let displacement1 = (self.mmu.read_word(self.pc + 4) as u32).sign_extend(16);
                         let displacement = (self.mmu.read_word(self.pc + 4) as i32).sign_extend(16);
                         let address = self.pc as i32 + displacement + 4;
-                        let bit_set = address.bit(bit_index as usize);
-                        println!(
-                            "btst.b #${:04}, (PC, {:08x}) == {:08x}",
-                            bit_index, displacement, address
-                        );
+                        let address_contents = self.mmu.read_byte(address as u32);
+                        let bit_set = address_contents.bit(test_bit as usize);
+                        println!("btst.b #${:04}, (PC, {:04x}) == {:08x}", test_bit, displacement as i16, address);
                         self.z_flag = !bit_set;
                         self.pc += 6
                     }
