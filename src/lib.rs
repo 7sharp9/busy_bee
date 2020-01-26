@@ -523,7 +523,7 @@ impl CPU {
         source: u32,
         destination: u32,
         result: u32,
-        size: OperationSize,
+        size: &OperationSize,
         isADDX: bool,
     ) {
         let Sm: bool;
@@ -942,13 +942,13 @@ impl CPU {
                 match AddressingMode::parse(mode as u8, reg as u8) {
                     AddressingMode::Immediate => {
                         let imm = self.mmu.read_word(self.pc + 2);
-                        let int_mask = imm.bits(8..10);
+                        let int_mask = imm.bits(8..11);
                         self.c_flag = imm.bit(0);
                         self.v_flag = imm.bit(1);
                         self.z_flag = imm.bit(2);
                         self.n_flag = imm.bit(3);
                         self.x_flag = imm.bit(4);
-                        self.int_mask = imm.bits(8..10);
+                        self.int_mask = int_mask;
                         self.m_flag = imm.bit(12);
                         self.s_flag = imm.bit(13);
                         self.t0_flag = imm.bit(14);
@@ -1143,7 +1143,7 @@ impl CPU {
                                 let result = destination + source;
                                 self.set_dreg16(dn, result);
 
-                                self.flg_add(source as u32, destination as u32, result as u32, size, false);
+                                self.flg_add(source as u32, destination as u32, result as u32, &size, false);
 
                                 println!("add.{} #${:04x},d{}", size, source, dn)
                             }
