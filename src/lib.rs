@@ -968,7 +968,7 @@ impl CPU {
             //CC none
             _ if opcode & 0b1111000011000000 == 0b1001000011000000 => {
                 let register = (opcode >> 9) & 0b111;
-                let long_mode = opcode.bit(9);
+                let long_mode = opcode.bit(8);
                 let mode = ((opcode >> 3) & 0b111) as u8;
                 let reg = (opcode & 0b111) as u8;
                 match AddressingMode::parse(mode, reg) {
@@ -1001,9 +1001,39 @@ impl CPU {
                     AddressingMode::Immediate => todo!(),
                 }
             },
-            //cmp
-            _ if opcode & 0b1111000000000000 == 0b1011000000000000 => {
-                todo!("cmp")
+            //cmpa
+            _ if opcode & 0b1111000000000000 == 0b1011000000000000 && (opcode >> 6) & 0b11 == 0b11 => {
+                let mut pc_increment = 2;
+                let long_mode = opcode.bit(8);
+                let register = ((opcode >> 9) & 0b111) as u8;
+                let ea_mode = ((opcode >> 3) & 0b111) as u8;
+                let ea_reg = (opcode & 0b111) as u8;
+                let address_mode = AddressingMode::parse(ea_mode, ea_reg);
+
+                if long_mode {
+                    match address_mode {
+                        AddressingMode::DataRegister(_reg) => todo!(),
+                        AddressingMode::AddressRegister(reg) => todo!(),
+                        AddressingMode::Address(_reg) => todo!(),
+                        AddressingMode::AddressWithPostincrement(_reg) => todo!(),
+                        AddressingMode::AddressWithPredecrement(_reg) => todo!(),
+                        AddressingMode::AddressWithDisplacement(_reg) => todo!(),
+                        AddressingMode::AddressWithIndex(_reg) => todo!(),
+                        AddressingMode::ProgramCounterWithDisplacement => todo!(),
+                        AddressingMode::ProgramCounterWithIndex => todo!(),
+                        AddressingMode::AbsoluteShort => todo!(),
+                        AddressingMode::AbsoluteLong => todo!(),
+                        AddressingMode::Immediate => {
+                            let imm = self.mmu.read_long(self.pc + pc_increment);
+                            let dest_address = self.get_areg32(register);
+                            let result = dest_address - imm;
+                            //should be c=1, n=1 after flags a0($A) - $200 -> 0xFFFFFE0A
+                            pc_increment += 4
+                        },
+                    }
+                } else {
+                    todo!()
+                }
             }
 
             //addx
