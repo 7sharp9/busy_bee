@@ -484,7 +484,7 @@ impl CPU {
             // cc NA
             _ if opcode & 0b1100000111000000 == 0b0000000001000000 && opcode >> 12 & 0b11 != 0 => {
                 let mut pc_increment = 2;
-                let size = match opcode >> 12 & 0b11 {
+                let size = match (opcode >> 12) & 0b11 {
                     0b11 => OperationSize::Word,
                     0b10 => OperationSize::Long,
                     _ => panic!("Invalid size"),
@@ -532,9 +532,9 @@ impl CPU {
                     _ => panic!("Invalid"),
                 };
 
-                let destination_reg = opcode >> 9 & 0b111;
-                let destination_mode = opcode >> 6 & 0b111;
-                let source_mode = opcode >> 3 & 0b111;
+                let destination_reg = (opcode >> 9) & 0b111;
+                let destination_mode = (opcode >> 6) & 0b111;
+                let source_mode = (opcode >> 3) & 0b111;
                 let source_reg = opcode & 0b111;
                 let mut pc_increment = 2;
 
@@ -720,7 +720,7 @@ impl CPU {
             }
             //DBcc
             _ if opcode & 0b1111000011111000 == 0b0101000011001000 => {
-                let condition = opcode >> 8 & 0b1111;
+                let condition = (opcode >> 8) & 0b1111;
                 let reg = opcode & 0b111;
                 let condition = Condition::from_u16(condition).unwrap();
                 let displacement = (self.mmu.read_word(self.pc + 2) as i32).sign_extend(16);
@@ -773,7 +773,7 @@ impl CPU {
             //Bcc
             //CC none
             _ if opcode & 0b1111000000000000 == 0b0110000000000000 => {
-                let bcc = opcode >> 8 & 0b1111;
+                let bcc = (opcode >> 8) & 0b1111;
                 let mut pc_increment = 2;
                 let condition = Condition::from_u16(bcc).unwrap();
                 let condition_true = condition.is_true(self);
@@ -815,7 +815,7 @@ impl CPU {
             _ if opcode & 0b1111111100000000 == 0b0100001000000000 => {
                 let size = opcode >> 6 & 0b11;
                 let size = CPU::size_from_two_bits_zero_indexed(size).unwrap();
-                let mode = opcode >> 3 & 0b111;
+                let mode = (opcode >> 3) & 0b111;
                 let reg = opcode & 0b111;
 
                 match AddressingMode::parse(mode as u8, reg as u8) {
@@ -967,9 +967,9 @@ impl CPU {
             //suba
             //CC none
             _ if opcode & 0b1111000011000000 == 0b1001000011000000 => {
-                let register = opcode >> 9 & 0b111;
+                let register = (opcode >> 9) & 0b111;
                 let long_mode = opcode.bit(9);
-                let mode = (opcode >> 3 & 0b111) as u8;
+                let mode = ((opcode >> 3) & 0b111) as u8;
                 let reg = (opcode & 0b111) as u8;
                 match AddressingMode::parse(mode, reg) {
                     AddressingMode::DataRegister(_reg) => todo!(),
@@ -1000,7 +1000,12 @@ impl CPU {
                     AddressingMode::AbsoluteLong => todo!(),
                     AddressingMode::Immediate => todo!(),
                 }
+            },
+            //cmp
+            _ if opcode & 0b1111000000000000 == 0b1011000000000000 => {
+                todo!("cmp")
             }
+
             //addx
             _ if opcode & 0b1111000100110000 == 0b1101000100000000
                 && opcode >> 6 & 0b11 != 0b11 =>
@@ -1014,8 +1019,8 @@ impl CPU {
                 && opcode >> 6 & 0b11 != 0b11 =>
             {
                 let mut pc_increment = 2;
-                let dn = (opcode >> 9 & 0b111) as u8;
-                let ea_mode = (opcode >> 3 & 0b111) as u8;
+                let dn = ((opcode >> 9) & 0b111) as u8;
+                let ea_mode = ((opcode >> 3) & 0b111) as u8;
                 let ea_reg = (opcode & 0b111) as u8;
 
                 let (size, operation_mode) = match opcode >> 6 & 0b111 {
