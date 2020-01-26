@@ -32,7 +32,18 @@ fn main() -> Result<(), io::Error> {
     let mut cpu = CPU {
         a: [0; 8],
         d: [0; 8],
-        ccr: 0,
+        t1_flag: false,
+        t0_flag: false,
+        s_flag: false,
+        m_flag: false,
+        int_mask: 0,
+        irq_level: 0,
+        x_flag: false,
+        n_flag: false,
+        z_flag: false,
+        v_flag: false,
+        c_flag: false,
+
         pc: 0,
         mmu: Mmu {
             rom: rom,
