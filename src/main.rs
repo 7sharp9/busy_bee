@@ -57,7 +57,7 @@ fn main() -> Result<(), io::Error> {
 
     //cpu.reset();
     cpu.reset();
-    for _ in 1..=70 {
+    for _ in 1..=2000 {
         cpu.step();
     }
     println!("\r\n{:?}", cpu);
