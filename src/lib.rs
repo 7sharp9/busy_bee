@@ -390,7 +390,6 @@ impl CPU {
     pub const ZFLAG_SET: u32 = 0;
     pub const ZFLAG_CLEAR: u32 = 0xffffffff;
 
-
     //and, andi, or, eor, eori, move, moveq, ext, not, tst,
     pub fn flag_logical(&mut self, result: u32, size: OperationSize) {
         match size {
@@ -708,7 +707,10 @@ impl CPU {
                         let address = self.pc as i32 + displacement + 4;
                         let address_contents = self.mmu.read_byte(address as u32);
                         let bit_set = address_contents.bit(test_bit as usize);
-                        println!("btst.b #${:04}, (PC, {:04x}) == {:08x}", test_bit, displacement as i16, address);
+                        println!(
+                            "btst.b #${:04}, (PC, {:04x}) == {:08x}",
+                            test_bit, displacement as i16, address
+                        );
                         self.z_flag = !bit_set;
                         self.pc += 6
                     }
@@ -800,13 +802,13 @@ impl CPU {
                     condition,
                     displacement_size,
                     displacement,
-                    (self.pc + displacement + 2),
+                    (self.pc.wrapping_add(displacement + 2)),
                     condition_true
                 );
                 if condition_true {
-                    self.pc += displacement + 2
+                    self.pc = self.pc.wrapping_add(displacement + 2)
                 } else {
-                    self.pc += pc_increment
+                    self.pc = self.pc.wrapping_add(pc_increment)
                 }
             }
 
@@ -902,7 +904,8 @@ impl CPU {
             //CC NZVC
             //Destination - Immediate Data
             _ if opcode & 0b1111111100000000 == 0b0000110000000000 => {
-                let size = CPU::size_from_two_bits_zero_indexed((opcode & 0b0000000011000000) >> 6).unwrap();
+                let size = CPU::size_from_two_bits_zero_indexed((opcode & 0b0000000011000000) >> 6)
+                    .unwrap();
                 let mode = ((opcode & 0b0000000000111000) >> 3) as u8;
                 let reg = (opcode & 0b111) as u8;
                 let addressing_mode = AddressingMode::parse(mode, reg);
@@ -1000,9 +1003,11 @@ impl CPU {
                     AddressingMode::AbsoluteLong => todo!(),
                     AddressingMode::Immediate => todo!(),
                 }
-            },
+            }
             //cmpa
-            _ if opcode & 0b1111000000000000 == 0b1011000000000000 && (opcode >> 6) & 0b11 == 0b11 => {
+            _ if opcode & 0b1111000000000000 == 0b1011000000000000
+                && (opcode >> 6) & 0b11 == 0b11 =>
+            {
                 let mut pc_increment = 2;
                 let long_mode = opcode.bit(8);
                 let register = ((opcode >> 9) & 0b111) as u8;
@@ -1025,11 +1030,18 @@ impl CPU {
                         AddressingMode::AbsoluteLong => todo!(),
                         AddressingMode::Immediate => {
                             let imm = self.mmu.read_long(self.pc + pc_increment);
+                            pc_increment += 4;
                             let dest_address = self.get_areg32(register);
-                            let result = dest_address - imm;
-                            //should be c=1, n=1 after flags a0($A) - $200 -> 0xFFFFFE0A
-                            pc_increment += 4
-                        },
+                            let result = dest_address.wrapping_sub(imm);
+                            self.flag_cmp(imm, dest_address, result, OperationSize::Long);
+                            println!(
+                                "cmpa.{} #${:08x},a{}",
+                                (if long_mode { "l" } else { "w" }),
+                                imm,
+                                register
+                            );
+                            self.pc += pc_increment
+                        }
                     }
                 } else {
                     todo!()
@@ -1090,7 +1102,13 @@ impl CPU {
                                 let result = destination + source;
                                 self.set_dreg16(dn, result);
 
-                                self.flg_add(source as u32, destination as u32, result as u32, &size, false);
+                                self.flg_add(
+                                    source as u32,
+                                    destination as u32,
+                                    result as u32,
+                                    &size,
+                                    false,
+                                );
 
                                 println!("add.{} #${:04x},d{}", size, source, dn)
                             }
