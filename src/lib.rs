@@ -5,6 +5,7 @@
 extern crate num_derive;
 
 use self::TraceMode::*;
+use num::traits::AsPrimitive;
 use num_traits::FromPrimitive;
 use std::convert::TryInto;
 use std::fmt;
@@ -12,6 +13,29 @@ use std::fmt;
 use quark::BitIndex;
 use quark::BitMask;
 use quark::Signs;
+
+use num::{PrimInt, Unsigned};
+use std::ops::{Add, BitAnd, BitOr, Not, Shl, Sub};
+
+pub trait Flag_Negative<T> {
+    /// The  negative value of the type.
+    fn negative() -> T;
+}
+
+macro_rules! bit_size_impl {
+    ($t:ty, $v:expr) => {
+        impl Flag_Negative<$t> for $t {
+            #[inline]
+            fn negative() -> $t {
+                $v
+            }
+        }
+    };
+}
+
+bit_size_impl!(u8, 0x80);
+bit_size_impl!(u16, 0x8000);
+bit_size_impl!(u32, 0x80000000);
 
 pub mod mmu;
 
@@ -431,45 +455,24 @@ impl CPU {
     }
 
     //ADD, ADDI, ADDQ, ADDX
-    pub fn flg_add(
-        &mut self,
-        source: u32,
-        destination: u32,
-        result: u32,
-        size: &OperationSize,
-        isADDX: bool,
-    ) {
-        let Sm: bool;
-        let Dm: bool;
-        let Rm: bool;
+    pub fn flg_add<T>(&mut self, source: T, destination: T, result: T, isADDX: bool)
+    where
+        T: PrimInt + Flag_Negative<T>,
+    {
+        let Sm = (source & T::negative()) != T::zero();
+        let Dm = (destination & T::negative()) != T::zero();
+        let Rm = (result & T::negative()) != T::zero();
 
-        match size {
-            OperationSize::Byte => {
-                Sm = (source & 0x80) != 0;
-                Dm = (destination & 0x80) != 0;
-                Rm = (result & 0x80) != 0;
-            }
-            OperationSize::Word => {
-                Sm = (source & 0x8000) != 0;
-                Dm = (destination & 0x8000) != 0;
-                Rm = (result & 0x8000) != 0;
-            }
-            OperationSize::Long => {
-                Sm = (source & 0x80000000) != 0;
-                Dm = (destination & 0x80000000) != 0;
-                Rm = (result & 0x80000000) != 0;
-            }
-        }
         self.v_flag = (Sm && Dm && !Rm) || (!Sm && !Dm && Rm);
         self.c_flag = (Sm && Dm) || (!Rm && Dm) || (Sm && !Rm);
         self.x_flag = self.c_flag;
         self.n_flag = Rm;
         if isADDX {
-            if result != 0 {
+            if result != T::zero() {
                 self.z_flag = false
             }
         } else {
-            self.z_flag = result == 0
+            self.z_flag = result == T::zero()
         }
     }
 
@@ -1099,16 +1102,10 @@ impl CPU {
                                 let source = self.mmu.read_word(self.pc + pc_increment);
                                 pc_increment += 2;
                                 let destination = self.get_dreg16(dn);
-                                let result = destination + source;
+                                let result = destination.wrapping_add(source);
                                 self.set_dreg16(dn, result);
 
-                                self.flg_add(
-                                    source as u32,
-                                    destination as u32,
-                                    result as u32,
-                                    &size,
-                                    false,
-                                );
+                                self.flg_add(source, destination, result, false);
 
                                 println!("add.{} #${:04x},d{}", size, source, dn)
                             }
