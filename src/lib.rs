@@ -1172,7 +1172,7 @@ impl CPU {
                 let amount_to_shift = {
                     match size {
                         OperationSize::Byte => self.get_dreg8(reg) as u32,
-                        OperationSize::Word => self.get_dreg16(reg) as u32,
+                        OperationSize::Word => 0xffff,// self.get_dreg16(reg) as u32,
                         OperationSize::Long => self.get_dreg32(reg),
                     }
                 };
@@ -1192,7 +1192,7 @@ impl CPU {
                         if shift_amount != 0 {
                             if shift_amount <= 8 {
                                 self.x_flag = amount_to_shift << (9 - shift_amount) != 0;
-                                self.c_flag = self.c_flag;
+                                self.c_flag = self.x_flag;
                                 self.n_flag = false;
                                 self.z_flag = result == 0;
                                 self.v_flag = false;
@@ -1215,7 +1215,7 @@ impl CPU {
                         if shift_amount != 0 {
                             if shift_amount <= 16 {
                                 self.x_flag = ((amount_to_shift >> (shift_amount - 1)) << 8) != 0;
-                                self.c_flag = self.c_flag;
+                                self.c_flag = self.x_flag;
                                 self.n_flag = false;
                                 self.z_flag = result == 0;
                                 self.v_flag = false;
