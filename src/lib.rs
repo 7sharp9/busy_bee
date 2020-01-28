@@ -68,6 +68,22 @@ pub enum Destination {
 }
 
 #[derive(Debug)]
+pub enum ShiftDirection {
+    Left,
+    Right,
+}
+
+impl std::fmt::Display for ShiftDirection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let display = match self {
+            ShiftDirection::Left => "l",
+            ShiftDirection::Right => "r",
+        };
+        write!(f, "{}", display)
+    }
+}
+
+#[derive(Debug)]
 pub enum AddressingMode {
     DataRegister(u8),
     AddressRegister(u8),
@@ -1125,6 +1141,104 @@ impl CPU {
                     (AddressingMode::ProgramCounterWithIndex, Destination::EA) => panic!(),
                     (AddressingMode::Immediate, Destination::EA) => panic!(),
                 }
+            }
+            //LSL/LSR - register
+            _ if opcode & 0b1111000000011000 == 0b1110000000001000 => {
+                let count_or_reg = ((opcode >> 9) & 0b111) as u8;
+                let direction = if (opcode >> 8) & 0b1 == 1 {
+                    ShiftDirection::Left
+                } else {
+                    ShiftDirection::Right
+                };
+                let size = CPU::size_from_two_bits_zero_indexed((opcode >> 6) & 0b111).unwrap();
+                let use_register_for_count = opcode.bit(5);
+                let reg = (opcode & 0b111) as u8;
+
+                let shift_amount = {
+                    if use_register_for_count {
+                        match size {
+                            OperationSize::Byte => self.get_dreg8(count_or_reg) as u32,
+                            OperationSize::Word => self.get_dreg16(count_or_reg) as u32,
+                            OperationSize::Long => self.get_dreg32(count_or_reg),
+                        }
+                    } else {
+                        match count_or_reg {
+                            //0 is encoded as a shift of 8
+                            0 => 8,
+                            other => other as u32,
+                        }
+                    }
+                };
+                let amount_to_shift = {
+                    match size {
+                        OperationSize::Byte => self.get_dreg8(reg) as u32,
+                        OperationSize::Word => self.get_dreg16(reg) as u32,
+                        OperationSize::Long => self.get_dreg32(reg),
+                    }
+                };
+                let result = match direction {
+                    ShiftDirection::Left => amount_to_shift << shift_amount,
+                    ShiftDirection::Right => amount_to_shift >> shift_amount,
+                };
+
+                match size {
+                    OperationSize::Byte => self.set_dreg8(reg, result as u8),
+                    OperationSize::Word => self.set_dreg16(reg, result as u16),
+                    OperationSize::Long => self.set_dreg32(reg, result),
+                }
+
+                match size {
+                    OperationSize::Byte => {
+                        if shift_amount != 0 {
+                            if shift_amount <= 8 {
+                                self.x_flag = amount_to_shift << (9 - shift_amount) != 0;
+                                self.c_flag = self.c_flag;
+                                self.n_flag = false;
+                                self.z_flag = result == 0;
+                                self.v_flag = false;
+                            } else {
+                                //*r_dst &= 0xffffff00; optimization, no need for bit shift
+                                self.x_flag = false;
+                                self.c_flag = false;
+                                self.n_flag = false;
+                                self.z_flag = true;
+                                self.v_flag = false;
+                            }
+                        } else {
+                            self.c_flag = false;
+                            self.n_flag = (amount_to_shift as u8).sign_bit();
+                            self.z_flag = result == 0;
+                            self.v_flag = false;
+                        }
+                    }
+                    OperationSize::Word => {
+                        if shift_amount != 0 {
+                            if shift_amount <= 16 {
+                                self.x_flag = ((amount_to_shift >> (shift_amount - 1)) << 8) != 0;
+                                self.c_flag = self.c_flag;
+                                self.n_flag = false;
+                                self.z_flag = result == 0;
+                                self.v_flag = false;
+                            } else {
+                                //*r_dst &= 0xffff0000; optimization, no need for bit shift
+                                self.x_flag = false;
+                                self.c_flag = false;
+                                self.n_flag = false;
+                                self.z_flag = true;
+                                self.v_flag = false;
+                            }
+                        } else {
+                            self.c_flag = false;
+                            self.n_flag = (amount_to_shift as u16).sign_bit();
+                            self.z_flag = result == 0;
+                            self.v_flag = false;
+                        }
+                    }
+                    OperationSize::Long => todo!(),
+                }
+                println!("ls{}.{} #{:02},d{}", direction, size, shift_amount, reg);
+                println!("\r\n{:?}", self);
+                self.pc += 2
             }
             _ => panic!("pc: {:08x} unknown {1:04x} {1:016b}", self.pc, opcode),
         }
