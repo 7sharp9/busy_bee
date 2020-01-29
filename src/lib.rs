@@ -17,16 +17,16 @@ use quark::Signs;
 use num::{PrimInt, Unsigned};
 use std::ops::{Add, BitAnd, BitOr, Not, Shl, Sub};
 
-pub trait Flag_Negative<T> {
-    /// The  negative value of the type.
-    fn negative() -> T;
+pub trait Flag_Msb<T> {
+    /// The most significant bit for the type.
+    fn msb() -> T;
 }
 
 macro_rules! bit_size_impl {
     ($t:ty, $v:expr) => {
-        impl Flag_Negative<$t> for $t {
+        impl Flag_Msb<$t> for $t {
             #[inline]
-            fn negative() -> $t {
+            fn msb() -> $t {
                 $v
             }
         }
@@ -405,8 +405,22 @@ impl CPU {
         self.d[reg as usize] = (self.d[reg as usize] & 0xffff0000) | (val as u32 & 0x0000ffff)
     }
 
+    fn set_dreg8_clear(&mut self, reg: u8) {
+        let reg = reg & 7;
+        self.d[reg as usize] = self.d[reg as usize] & 0xffffff00
+    }
+
+    fn set_dreg16_clear(&mut self, reg: u8) {
+        let reg = reg & 7;
+        self.d[reg as usize] = self.d[reg as usize] & 0xffff0000
+    }
+
     fn set_dreg32(&mut self, reg: u8, val: u32) {
         self.d[(reg & 7) as usize] = val
+    }
+
+    fn set_dreg32_clear(&mut self, reg: u8) {
+        self.d[(reg & 7) as usize] = 0
     }
 
     fn set_areg16(&mut self, reg: u8, val: u16) {
@@ -473,11 +487,11 @@ impl CPU {
     //ADD, ADDI, ADDQ, ADDX
     pub fn flg_add<T>(&mut self, source: T, destination: T, result: T, isADDX: bool)
     where
-        T: PrimInt + Flag_Negative<T>,
+        T: PrimInt + Flag_Msb<T>,
     {
-        let Sm = (source & T::negative()) != T::zero();
-        let Dm = (destination & T::negative()) != T::zero();
-        let Rm = (result & T::negative()) != T::zero();
+        let Sm = (source & T::msb()) != T::zero();
+        let Dm = (destination & T::msb()) != T::zero();
+        let Rm = (result & T::msb()) != T::zero();
 
         self.v_flag = (Sm && Dm && !Rm) || (!Sm && !Dm && Rm);
         self.c_flag = (Sm && Dm) || (!Rm && Dm) || (Sm && !Rm);
@@ -1142,14 +1156,9 @@ impl CPU {
                     (AddressingMode::Immediate, Destination::EA) => panic!(),
                 }
             }
-            //LSL/LSR - register
-            _ if opcode & 0b1111000000011000 == 0b1110000000001000 => {
+            //LSR - register
+            _ if opcode & 0b1111000100011000 == 0b1110000000001000 => {
                 let count_or_reg = ((opcode >> 9) & 0b111) as u8;
-                let direction = if (opcode >> 8) & 0b1 == 1 {
-                    ShiftDirection::Left
-                } else {
-                    ShiftDirection::Right
-                };
                 let size = CPU::size_from_two_bits_zero_indexed((opcode >> 6) & 0b111).unwrap();
                 let use_register_for_count = opcode.bit(5);
                 let reg = (opcode & 0b111) as u8;
@@ -1176,28 +1185,21 @@ impl CPU {
                         OperationSize::Long => self.get_dreg32(reg),
                     }
                 };
-                let result = match direction {
-                    ShiftDirection::Left => source << shift,
-                    ShiftDirection::Right => source >> shift,
-                };
+                let result = source >> shift;
 
-                match size {
-                    OperationSize::Byte => self.set_dreg8(reg, result as u8),
-                    OperationSize::Word => self.set_dreg16(reg, result as u16),
-                    OperationSize::Long => self.set_dreg32(reg, result),
-                }
-
+                //flags and d reg assignment
                 match size {
                     OperationSize::Byte => {
                         if shift != 0 {
                             if shift <= 8 {
+                                self.set_dreg8(reg, result as u8);
                                 self.x_flag = source << (9 - shift) != 0;
                                 self.c_flag = self.x_flag;
                                 self.n_flag = false;
                                 self.z_flag = result == 0;
                                 self.v_flag = false;
                             } else {
-                                //*r_dst &= 0xffffff00; optimization, no need for bit shift
+                                self.set_dreg8_clear(reg); //self.d[reg] &= 0xffffff00
                                 self.x_flag = false;
                                 self.c_flag = false;
                                 self.n_flag = false;
@@ -1214,13 +1216,14 @@ impl CPU {
                     OperationSize::Word => {
                         if shift != 0 {
                             if shift <= 16 {
+                                self.set_dreg16(reg, result as u16);
                                 self.x_flag = ((source >> (shift - 1)) << 8) != 0;
                                 self.c_flag = self.x_flag;
                                 self.n_flag = false;
                                 self.z_flag = result == 0;
                                 self.v_flag = false;
                             } else {
-                                //*r_dst &= 0xffff0000; optimization, no need for bit shift
+                                self.set_dreg16_clear(reg); //self.d[reg] &= 0xffff0000
                                 self.x_flag = false;
                                 self.c_flag = false;
                                 self.n_flag = false;
@@ -1234,9 +1237,36 @@ impl CPU {
                             self.v_flag = false;
                         }
                     }
-                    OperationSize::Long => todo!(),
+                    OperationSize::Long => {
+                        if shift != 0 {
+                            if shift <= 32 {
+                                self.set_dreg32(reg, result);
+                                self.x_flag = ((source >> (shift - 1)) << 8) != 0;
+                                self.c_flag = self.x_flag;
+                                self.n_flag = false;
+                                self.z_flag = result == 0;
+                                self.v_flag = false;
+                            } else {
+                                self.set_dreg32_clear(reg); // self.d[reg] = 0
+                                self.x_flag = if shift == 32 {
+                                    (source & 0x80000000) >> 23 != 0
+                                } else {
+                                    false
+                                };
+                                self.c_flag = self.x_flag;
+                                self.n_flag = false;
+                                self.z_flag = true;
+                                self.v_flag = false;
+                            }
+                        } else {
+                            self.c_flag = false;
+                            self.n_flag = source.sign_bit();
+                            self.z_flag = result == 0;
+                            self.v_flag = false;
+                        }
+                    }
                 }
-                println!("ls{}.{} #{:02},d{}", direction, size, shift, reg);
+                println!("lsr.{} #{:02},d{}", size, shift, reg);
                 println!("\r\n{:?}", self);
                 self.pc += 2
             }
