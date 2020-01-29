@@ -1154,7 +1154,7 @@ impl CPU {
                 let use_register_for_count = opcode.bit(5);
                 let reg = (opcode & 0b111) as u8;
 
-                let shift_amount = {
+                let shift = {
                     if use_register_for_count {
                         match size {
                             OperationSize::Byte => self.get_dreg8(count_or_reg) as u32,
@@ -1169,16 +1169,16 @@ impl CPU {
                         }
                     }
                 };
-                let amount_to_shift = {
+                let source = {
                     match size {
                         OperationSize::Byte => self.get_dreg8(reg) as u32,
-                        OperationSize::Word => 0xffff,// self.get_dreg16(reg) as u32,
+                        OperationSize::Word => self.get_dreg16(reg) as u32,
                         OperationSize::Long => self.get_dreg32(reg),
                     }
                 };
                 let result = match direction {
-                    ShiftDirection::Left => amount_to_shift << shift_amount,
-                    ShiftDirection::Right => amount_to_shift >> shift_amount,
+                    ShiftDirection::Left => source << shift,
+                    ShiftDirection::Right => source >> shift,
                 };
 
                 match size {
@@ -1189,9 +1189,9 @@ impl CPU {
 
                 match size {
                     OperationSize::Byte => {
-                        if shift_amount != 0 {
-                            if shift_amount <= 8 {
-                                self.x_flag = amount_to_shift << (9 - shift_amount) != 0;
+                        if shift != 0 {
+                            if shift <= 8 {
+                                self.x_flag = source << (9 - shift) != 0;
                                 self.c_flag = self.x_flag;
                                 self.n_flag = false;
                                 self.z_flag = result == 0;
@@ -1206,15 +1206,15 @@ impl CPU {
                             }
                         } else {
                             self.c_flag = false;
-                            self.n_flag = (amount_to_shift as u8).sign_bit();
+                            self.n_flag = (source as u8).sign_bit();
                             self.z_flag = result == 0;
                             self.v_flag = false;
                         }
                     }
                     OperationSize::Word => {
-                        if shift_amount != 0 {
-                            if shift_amount <= 16 {
-                                self.x_flag = ((amount_to_shift >> (shift_amount - 1)) << 8) != 0;
+                        if shift != 0 {
+                            if shift <= 16 {
+                                self.x_flag = ((source >> (shift - 1)) << 8) != 0;
                                 self.c_flag = self.x_flag;
                                 self.n_flag = false;
                                 self.z_flag = result == 0;
@@ -1229,14 +1229,14 @@ impl CPU {
                             }
                         } else {
                             self.c_flag = false;
-                            self.n_flag = (amount_to_shift as u16).sign_bit();
+                            self.n_flag = (source as u16).sign_bit();
                             self.z_flag = result == 0;
                             self.v_flag = false;
                         }
                     }
                     OperationSize::Long => todo!(),
                 }
-                println!("ls{}.{} #{:02},d{}", direction, size, shift_amount, reg);
+                println!("ls{}.{} #{:02},d{}", direction, size, shift, reg);
                 println!("\r\n{:?}", self);
                 self.pc += 2
             }
