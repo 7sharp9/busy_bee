@@ -55,11 +55,11 @@ impl Video {
 
     pub fn read_word(&self, address: u32) -> u16 {
         match address {
-            0xFF8201 => (self.video_base_high << 8) as u16 | 0x00,
-            0xFF8203 => (self.video_base_medium<< 8) as u16 | 0x00,
-            0xFF8205 => (self.video_address_counter_high << 8) as u16 | 0x00,
-            0xFF8207 => (self.video_address_counter_medium << 8) as u16 | 0x00,
-            0xFF8209 => (self.video_address_counter_low << 8) as u16 | 0x00,
+            0xFF8201 => (self.video_base_high as u16) << 8 | 0x00,
+            0xFF8203 => (self.video_base_medium as u16) << 8 | 0x00,
+            0xFF8205 => (self.video_address_counter_high as u16) << 8 | 0x00,
+            0xFF8207 => (self.video_address_counter_medium as u16) << 8 | 0x00,
+            0xFF8209 => (self.video_address_counter_low as u16) << 8 | 0x00,
             0xFF820A => (self.sync_mode << 2) as u16 | 0x00,
             0xFF8240..0xFF8260 => {
                 let b1 = (self.read_byte(address) as u16) << 8;
@@ -68,7 +68,7 @@ impl Video {
                 result
 
             },
-            0xFFFF8260 => (self.screen_resolution << 8) as u16 | 0x00,
+            0xFFFF8260 => (self.screen_resolution as u16) << 8 | 0x00,
             _ => panic!("invalid video register")
         }
     }
