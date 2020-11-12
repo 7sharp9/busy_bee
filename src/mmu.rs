@@ -31,8 +31,6 @@ const MAX_MEMORY: u32 = 0xffffff;
 const MAX_ROM: u32 = 0x3ffff;
 const MAX_CART: u32 = 0xFBFFFF;
 
-pub mod Video;
-
 #[derive(Clone)]
 pub struct Mmu {
     pub memory_configuration: u8,
@@ -40,7 +38,7 @@ pub struct Mmu {
     pub cart: Vec<u8>,
     pub memory: Vec<u8>,
     pub sound: Sound,
-    pub video: Video::Video,
+    pub video: Video,
 }
 
 #[derive(Clone)]
@@ -218,5 +216,119 @@ impl Mmu {
     pub fn write_long(&self, address: u32, data: u32) {
         let address = address & 0xffffff; //clip to max mem
         todo!()
+    }
+}
+
+#[derive(Clone)]
+pub struct Video {
+    video_base_high: u8,
+    video_base_medium: u8,
+    video_address_counter_high: u8,
+    video_address_counter_medium: u8,
+    video_address_counter_low: u8,
+    sync_mode: u8,
+    palette_colour: [u8; 32],
+    screen_resolution: u8,
+}
+
+impl Video {
+    pub fn new() -> Video {
+        Video {
+            video_base_high: 0,
+            video_base_medium: 0,
+            video_address_counter_high: 0,
+            video_address_counter_medium: 0,
+            video_address_counter_low: 0,
+            sync_mode: 0,
+            palette_colour: [0; 32],
+            screen_resolution: 0
+        }
+    }
+
+    pub fn print_palette_registers(&self) {
+        println!("{:04x}", self.read_word(0xFF8240));
+        println!("{:04x}", self.read_word(0xFF8242));
+        println!("{:04x}", self.read_word(0xFF8244));
+        println!("{:04x}", self.read_word(0xFF8246));
+        println!("{:04x}", self.read_word(0xFF8248));
+        println!("{:04x}", self.read_word(0xFF824a));
+        println!("{:04x}", self.read_word(0xFF824c));
+        println!("{:04x}", self.read_word(0xFF824e));
+        println!("{:04x}", self.read_word(0xFF8250));
+        println!("{:04x}", self.read_word(0xFF8252));
+        println!("{:04x}", self.read_word(0xFF8254));
+        println!("{:04x}", self.read_word(0xFF8256));
+        println!("{:04x}", self.read_word(0xFF8258));
+        println!("{:04x}", self.read_word(0xFF825a));
+        println!("{:04x}", self.read_word(0xFF825c));
+        println!("{:04x}", self.read_word(0xFF825e));
+    }
+
+    pub fn read_byte(&self, address: u32) -> u8 {
+        match address {
+            0xFF8201 => self.video_base_high,
+            0xFF8203 => self.video_base_medium,
+            0xFF8205 => self.video_address_counter_high & 0x3f,
+            0xFF8207 => self.video_address_counter_medium,
+            0xFF8209 => self.video_address_counter_low & 0xfe,
+            0xFF820A => self.sync_mode & 0x3,
+            0xFF8240..0xFF8260 => {
+                self.palette_colour[ (address - 0xFF8240) as usize] as u8
+            },
+            0xFF8260 => self.screen_resolution & 0x3,
+            _ => panic!("invalid video register")
+        }
+    }
+
+    pub fn write_byte(& mut self, address: u32, data: u8) {
+        match address {
+            0xFF8201 => self.video_base_high = data,
+            0xFF8203 => self.video_base_medium = data,
+            0xFF8205 => panic!("read only video_address_counter_high"),
+            0xFF8207 => panic!("read only video_address_counter_medium"),
+            0xFF8209 => panic!("read only video_address_counter_low"),
+            0xFF820A => self.sync_mode = data,
+            0xFF8240..0xFF8260 => self.palette_colour[ (address - 0xFF8240) as usize] = data,
+            0xFF8260 => self.screen_resolution = data,
+            _ => panic!("invalid video register")
+        }
+    }
+
+    pub fn read_word(&self, address: u32) -> u16 {
+        match address {
+            0xFF8201 => (self.video_base_high as u16) << 8 | 0x00,
+            0xFF8203 => (self.video_base_medium as u16) << 8 | 0x00,
+            0xFF8205 => (self.video_address_counter_high as u16) << 8 | 0x00,
+            0xFF8207 => (self.video_address_counter_medium as u16) << 8 | 0x00,
+            0xFF8209 => (self.video_address_counter_low as u16) << 8 | 0x00,
+            0xFF820A => (self.sync_mode << 2) as u16 | 0x00,
+            0xFF8240..0xFF8260 => {
+                let b1 = (self.read_byte(address) as u16) << 8;
+                let b2 = self.read_byte(address + 1) as u16;
+                let result = b1 | b2;
+                result
+
+            },
+            0xFFFF8260 => (self.screen_resolution as u16) << 8 | 0x00,
+            _ => panic!("invalid video register")
+        }
+    }
+
+    pub fn write_word(& mut self, address: u32, data: u16) {
+        match address {
+            0xff8201 => todo!(), // self.video_base_high,
+            0xFF8203 => todo!(), //self.video_base_medium,
+            0xFF8205 => todo!(), //self.video_address_counter_high & 0x3f,
+            0xFF8207 => todo!(), //self.video_address_counter_medium,
+            0xFF8209 => todo!(), //self.video_address_counter_low & 0xfe,
+            0xFF820A => todo!(), //self.sync_mode & 0x3,
+            0xFF8240..0xFF8260 => {
+                self.write_byte(address, (data >> 8) as u8);
+                self.write_byte(address + 1, (data & 0xff) as u8)
+
+            },
+            0xFF8260 => todo!(), //self.screen_resolution & 0x3,
+            _ => panic!("invalid video register")
+        }
     }
 }
