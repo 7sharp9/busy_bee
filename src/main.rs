@@ -3,11 +3,6 @@ use busy_bee::CPU;
 use std::fs;
 use std::io;
 
-//I forget if this was just another way of doing the read_word function or if there was something notable about it?
-fn read_word(memory: [u8; 4096], index: u16) -> u16 {
-    (memory[index as usize] as u16) << 8 | (memory[(index + 1) as usize] as u16)
-}
-
 fn main() -> Result<(), io::Error> {
     let rom = fs::read("/Users/davethomas/Documents/68000/TOS100UK.IMG")?;
 
