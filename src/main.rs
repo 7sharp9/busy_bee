@@ -1,29 +1,11 @@
-use busy_bee::mmu::{Mmu, Sound, Video::Video};
+use busy_bee::mmu::{Mmu, Sound, Video};
 use busy_bee::CPU;
 use std::fs;
 use std::io;
 
+//I forget if this was just another way of doing the read_word function or if there was something notable about it?
 fn read_word(memory: [u8; 4096], index: u16) -> u16 {
     (memory[index as usize] as u16) << 8 | (memory[(index + 1) as usize] as u16)
-}
-
-fn print_Palette_registers(cpu: CPU) {
-    println!("{:04x}", cpu.mmu.read_word(0xFF8240));
-    println!("{:04x}", cpu.mmu.read_word(0xFF8242));
-    println!("{:04x}", cpu.mmu.read_word(0xFF8244));
-    println!("{:04x}", cpu.mmu.read_word(0xFF8246));
-    println!("{:04x}", cpu.mmu.read_word(0xFF8248));
-    println!("{:04x}", cpu.mmu.read_word(0xFF824a));
-    println!("{:04x}", cpu.mmu.read_word(0xFF824c));
-    println!("{:04x}", cpu.mmu.read_word(0xFF824e));
-    println!("{:04x}", cpu.mmu.read_word(0xFF8250));
-    println!("{:04x}", cpu.mmu.read_word(0xFF8252));
-    println!("{:04x}", cpu.mmu.read_word(0xFF8254));
-    println!("{:04x}", cpu.mmu.read_word(0xFF8256));
-    println!("{:04x}", cpu.mmu.read_word(0xFF8258));
-    println!("{:04x}", cpu.mmu.read_word(0xFF825a));
-    println!("{:04x}", cpu.mmu.read_word(0xFF825c));
-    println!("{:04x}", cpu.mmu.read_word(0xFF825e));
 }
 
 fn main() -> Result<(), io::Error> {
