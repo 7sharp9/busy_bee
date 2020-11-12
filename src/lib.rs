@@ -17,14 +17,14 @@ use quark::Signs;
 use num::{PrimInt, Unsigned};
 use std::ops::{Add, BitAnd, BitOr, Not, Shl, Sub};
 
-pub trait Flag_Msb<T> {
+pub trait FlagMsb<T> {
     /// The most significant bit for the type.
     fn msb() -> T;
 }
 
 macro_rules! bit_size_impl {
     ($t:ty, $v:expr) => {
-        impl Flag_Msb<$t> for $t {
+        impl FlagMsb<$t> for $t {
             #[inline]
             fn msb() -> $t {
                 $v
@@ -338,7 +338,6 @@ pub mod ccr {
     pub const E68_SR_MASK: u16 = MASK | S | T0 | T1 | I;
 }
 
-use ccr::*;
 impl CPU {
     // pub fn trace_mode(&self) -> TraceMode {
     //     match (self.t1_flag, self.t0_flag) {
@@ -384,7 +383,7 @@ impl CPU {
     }
 
     fn get_dreg32(&self, reg: u8) -> u32 {
-        (self.d[(reg & 7) as usize])
+        self.d[(reg & 7) as usize]
     }
 
     fn get_areg16(&self, reg: u8) -> u16 {
@@ -392,7 +391,7 @@ impl CPU {
     }
 
     fn get_areg32(&self, reg: u8) -> u32 {
-        (self.a[(reg & 7) as usize])
+        self.a[(reg & 7) as usize]
     }
 
     fn set_dreg8(&mut self, reg: u8, val: u8) {
@@ -487,16 +486,16 @@ impl CPU {
     //ADD, ADDI, ADDQ, ADDX
     pub fn flg_add<T>(&mut self, source: T, destination: T, result: T, isADDX: bool)
     where
-        T: PrimInt + Flag_Msb<T>,
+        T: PrimInt + FlagMsb<T>,
     {
-        let Sm = (source & T::msb()) != T::zero();
-        let Dm = (destination & T::msb()) != T::zero();
-        let Rm = (result & T::msb()) != T::zero();
+        let sm = (source & T::msb()) != T::zero();
+        let dm = (destination & T::msb()) != T::zero();
+        let rm = (result & T::msb()) != T::zero();
 
-        self.v_flag = (Sm && Dm && !Rm) || (!Sm && !Dm && Rm);
-        self.c_flag = (Sm && Dm) || (!Rm && Dm) || (Sm && !Rm);
+        self.v_flag = (sm && dm && !rm) || (!sm && !dm && rm);
+        self.c_flag = (sm && dm) || (!rm && dm) || (sm && !rm);
         self.x_flag = self.c_flag;
-        self.n_flag = Rm;
+        self.n_flag = rm;
         if isADDX {
             if result != T::zero() {
                 self.z_flag = false
